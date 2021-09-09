@@ -1,0 +1,12 @@
+module mvw.org/cctools
+
+go 1.16
+
+require (
+	github.com/eiannone/keyboard v0.0.0-20200508000154-caf4b762e807
+	gitlab.com/gomidi/midi v1.21.0
+	gitlab.com/gomidi/rtmididrv v0.14.0
+	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
+)
+
+replace mvw.org/cctools => ./
