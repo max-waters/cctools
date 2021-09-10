@@ -10,16 +10,15 @@ import (
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/reader"
-	driver "gitlab.com/gomidi/rtmididrv"
 )
 
 type ControlChangeListener struct {
 	port       uint8
 	channel    uint8
-	driver     *driver.Driver
 	in         midi.In
 	reader     *reader.Reader
 	notifyFunc func(controller, value uint8)
+	closeFunc  func() error
 }
 
 func NewControlChangeListener(port, channel uint8, notifyFunc func(controller, value uint8)) *ControlChangeListener {
@@ -31,25 +30,12 @@ func NewControlChangeListener(port, channel uint8, notifyFunc func(controller, v
 }
 
 func (ccl *ControlChangeListener) Start() error {
-	drv, err := driver.New()
+	in, closeFunc, err := getMidiInPort(ccl.port)
 	if err != nil {
 		return err
 	}
-	ccl.driver = drv
-
-	ins, err := drv.Ins()
-	if err != nil {
-		return err
-	}
-
-	if int(ccl.port) > len(ins) {
-		return fmt.Errorf("unknown port number: %d", ccl.port)
-	}
-
-	ccl.in = ins[ccl.port]
-	if err := ccl.in.Open(); err != nil {
-		return err
-	}
+	ccl.in = in
+	ccl.closeFunc = closeFunc
 
 	// to disable logging, pass mid.NoLogger() as option
 	ccl.reader = reader.New(
@@ -73,7 +59,7 @@ func (ccl *ControlChangeListener) processMessage(pos *reader.Position, msg midi.
 }
 
 func (ccl *ControlChangeListener) Close() error {
-	return ccl.driver.Close()
+	return ccl.closeFunc()
 }
 
 type ControlChangeListenerView struct {
@@ -97,7 +83,7 @@ func NewControlChangeListenerView(port, channel uint8, outputFile string, timest
 
 func (cclv *ControlChangeListenerView) Start() error {
 	if err := cclv.ccl.Start(); err != nil {
-		fmt.Printf("Cannot start control change listener: %s", err)
+		fmt.Printf("Cannot start control change listener: %s\n", err)
 		return err
 	}
 	cclv.print(true)
@@ -127,9 +113,9 @@ func (cclv *ControlChangeListenerView) print(clearScreen bool) {
 	var i uint8
 	for i = 0; i < 128; i++ {
 		if v, ok := cclv.controllerValueMap[i]; ok {
-			sb.WriteString(fmt.Sprintf("%03d:%03d ", i, v))
+			sb.WriteString(fmt.Sprintf("%s ", formatControllerValuePair(i, &v)))
 		} else {
-			sb.WriteString(fmt.Sprintf("%03d:    ", i))
+			sb.WriteString(fmt.Sprintf("%s ", formatControllerValuePair(i, nil)))
 		}
 		if (i+1)%8 == 0 {
 			sb.WriteString("\n")
@@ -208,16 +194,7 @@ func (cclv *ControlChangeListenerView) saveFile() {
 	outputFile := cclv.formatFileName()
 	cclv.log("Saving to file '%s'", outputFile)
 
-	sb := strings.Builder{}
-	sb.WriteString("controller,value\n")
-	var i uint8
-	for i = 0; i < 128; i++ {
-		if v, ok := cclv.controllerValueMap[i]; ok {
-			sb.WriteString(fmt.Sprintf("%d,%d\n", i, v))
-		}
-	}
-
-	if err := writeFile(outputFile, sb.String()); err != nil {
+	if err := saveControllerValueMap(outputFile, cclv.controllerValueMap); err != nil {
 		cclv.log("Cannot save to file '%s': %s", outputFile, err)
 	} else {
 		cclv.log("Saved to file %s", outputFile)

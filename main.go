@@ -47,7 +47,14 @@ func runControlChangeListener() {
 }
 
 func runControlChangeSender() {
+	port := flag.Uint("p", 0, "The port to send to")
+	channel := flag.Uint("c", 0, "The channel to send to")
+	inputfile := flag.String("f", "", "Input file name")
+	flag.Parse()
 
+	if err := cctools.SendControlChangeData(uint8(*port), uint8(*channel), *inputfile); err != nil {
+		os.Exit(1)
+	}
 }
 
 func runPortLister() {
