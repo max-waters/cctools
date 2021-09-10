@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"mvw.org/cctools/cctools"
 	// when using portmidi, replace the line above with
@@ -13,6 +15,8 @@ import (
 const CommandListen = "listen"
 const CommandSend = "send"
 const CommandList = "list"
+const CommandNordAcr = "nord-lead-acr"
+const CommandLog = "log"
 
 func main() {
 	if len(os.Args) <= 1 {
@@ -28,6 +32,10 @@ func main() {
 		runControlChangeSender()
 	case CommandList:
 		runPortLister()
+	case CommandNordAcr:
+		runNordLeadAcr()
+	case CommandLog:
+		runMidiLogger()
 	default:
 		fmt.Printf("Unknown command: '%s'\n", command)
 	}
@@ -53,6 +61,35 @@ func runControlChangeSender() {
 	flag.Parse()
 
 	if err := cctools.SendControlChangeData(uint8(*port), uint8(*channel), *inputfile); err != nil {
+		os.Exit(1)
+	}
+}
+
+func runMidiLogger() {
+	port := flag.Uint("p", 0, "The port to listen to")
+	flag.Parse()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	midiLogger := cctools.NewMidiLogger(uint8(*port))
+	go func() {
+		<-sigChan
+		midiLogger.Stop()
+	}()
+
+	if err := midiLogger.Start(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func runNordLeadAcr() {
+	port := flag.Uint("p", 0, "The port to listen to")
+	slot := flag.Uint("s", 0, "The slot to request")
+	globalChan := flag.Uint("g", 0, "The global midi channel")
+	flag.Parse()
+
+	if err := cctools.SendAllControllerRequest(uint8(*port), uint8(*slot), uint8(*globalChan)); err != nil {
 		os.Exit(1)
 	}
 }

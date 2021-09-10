@@ -200,3 +200,41 @@ func (cclv *ControlChangeListenerView) saveFile() {
 		cclv.log("Saved to file %s", outputFile)
 	}
 }
+
+type MidiLogger struct {
+	port         uint8
+	shutdownChan chan interface{}
+}
+
+func NewMidiLogger(port uint8) *MidiLogger {
+	return &MidiLogger{
+		port:         port,
+		shutdownChan: make(chan interface{}, 1),
+	}
+}
+
+func (logger *MidiLogger) Start() error {
+	in, closeFunc, err := getMidiInPort(logger.port)
+	if err != nil {
+		return err
+	}
+	defer closeFunc()
+
+	reader := reader.New(
+		reader.NoLogger(),
+		reader.Each(func(pos *reader.Position, msg midi.Message) {
+			fmt.Println(msg.String())
+		}),
+	)
+
+	fmt.Printf("Listening to port %d (%s)\n", in.Number(), in.String())
+	reader.ListenTo(in)
+
+	<-logger.shutdownChan
+
+	return nil
+}
+
+func (logger *MidiLogger) Stop() {
+	logger.shutdownChan <- nil
+}
