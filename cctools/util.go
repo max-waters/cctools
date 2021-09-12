@@ -157,3 +157,12 @@ func formatControllerValuePair(controller uint8, value *uint8) string {
 	}
 	return fmt.Sprintf("%03d:   ", controller)
 }
+
+func ToBinaryString(u uint8) string {
+	s := ""
+	for i := 0; i < 8; i++ {
+		s = fmt.Sprintf("%d%s", u%2, s)
+		u /= 2
+	}
+	return s
+}

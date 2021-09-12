@@ -16,6 +16,8 @@ const CommandListen = "listen"
 const CommandSend = "send"
 const CommandList = "list"
 const CommandNordAcr = "nord-lead-acr"
+const CommandNordDrumHack = "nd2-hack"
+const CommandNordDrumSysex = "nd2-sysex"
 const CommandLog = "log"
 
 func main() {
@@ -36,6 +38,10 @@ func main() {
 		runNordLeadAcr()
 	case CommandLog:
 		runMidiLogger()
+	case CommandNordDrumHack:
+		runNd2Hacker()
+	case CommandNordDrumSysex:
+		runNd2Sysex()
 	default:
 		fmt.Printf("Unknown command: '%s'\n", command)
 	}
@@ -90,6 +96,35 @@ func runNordLeadAcr() {
 	flag.Parse()
 
 	if err := cctools.SendAllControllerRequest(uint8(*port), uint8(*slot), uint8(*globalChan)); err != nil {
+		os.Exit(1)
+	}
+}
+
+func runNd2Hacker() {
+	inPort := flag.Uint("ip", 0, "The port to listen to")
+	outPort := flag.Uint("op", 0, "The port to send to")
+	outChan := flag.Uint("c", 0, "The channel to send to")
+	flag.Parse()
+
+	nd2Hacker := cctools.NewNd2Hacker(uint8(*inPort), uint8(*outPort), uint8(*outChan))
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-sigChan
+		nd2Hacker.Stop()
+	}()
+	if err := nd2Hacker.Start(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func runNd2Sysex() {
+	port := flag.Uint("p", 0, "The port to send to")
+	flag.Parse()
+
+	if err := cctools.SendNd2Sysex(uint8(*port)); err != nil {
 		os.Exit(1)
 	}
 }

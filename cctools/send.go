@@ -60,3 +60,27 @@ func SendAllControllerRequest(port, slot, globalChan uint8) error {
 	fmt.Println("Done")
 	return nil
 }
+
+func SendNd2Sysex(port uint8) error {
+	out, outCloseFunc, err := getMidiOutPort(port)
+	if err != nil {
+		fmt.Printf("Error opening MIDI out port: %s\n", err)
+		return err
+	}
+	defer outCloseFunc()
+
+	w := writer.New(out)
+	//sysEx := []byte{240, 51, 127, 127, 8, 3, 7, 64, 0, 14, 247}
+	sysEx := []byte{51, 127, 127, 8, 3, 5, 0, 19}
+	m := sysex.SysEx(sysEx)
+	fmt.Printf("Sending sysex '%v' on port %d (%s)", m.Raw(), out.Number(), out.String())
+
+	if err := writer.SysEx(w, sysEx); err != nil {
+		fmt.Printf("Error sending SysEx message: %s", err)
+		return err
+	}
+
+	fmt.Println("Done")
+	return nil
+
+}

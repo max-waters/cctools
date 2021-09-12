@@ -9,6 +9,7 @@ import (
 	"github.com/eiannone/keyboard"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
+	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
 )
 
@@ -224,6 +225,9 @@ func (logger *MidiLogger) Start() error {
 		reader.NoLogger(),
 		reader.Each(func(pos *reader.Position, msg midi.Message) {
 			fmt.Println(msg.String())
+			if sysExMsg, ok := msg.(sysex.SysEx); ok {
+				fmt.Println(sysExMsg.Raw())
+			}
 		}),
 	)
 
