@@ -114,7 +114,7 @@ func runNd2Hacker() {
 		<-sigChan
 		nd2Hacker.Stop()
 	}()
-	if err := nd2Hacker.Start(); err != nil {
+	if err := nd2Hacker.GetControllerByteValueMap(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
