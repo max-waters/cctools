@@ -17,6 +17,7 @@ const CommandSend = "send"
 const CommandList = "list"
 const CommandNordAcr = "nord-lead-acr"
 const CommandNordDrumHack = "nd2-hack"
+const CommandNordDrumHackTest = "nd2-hack-test"
 const CommandNordDrumSysex = "nd2-sysex"
 const CommandLog = "log"
 
@@ -40,6 +41,8 @@ func main() {
 		runMidiLogger()
 	case CommandNordDrumHack:
 		runNd2Hacker()
+	case CommandNordDrumHackTest:
+		runNd2HackerTest()
 	case CommandNordDrumSysex:
 		runNd2Sysex()
 	default:
@@ -106,7 +109,11 @@ func runNd2Hacker() {
 	outChan := flag.Uint("c", 0, "The channel to send to")
 	flag.Parse()
 
-	nd2Hacker := cctools.NewNd2Hacker(uint8(*inPort), uint8(*outPort), uint8(*outChan))
+	nd2Hacker, err := cctools.NewNd2Hacker(uint8(*inPort), uint8(*outPort), uint8(*outChan))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -114,7 +121,31 @@ func runNd2Hacker() {
 		<-sigChan
 		nd2Hacker.Stop()
 	}()
-	if err := nd2Hacker.GetControllerByteValueMap(); err != nil {
+	if err := nd2Hacker.FindControllerByteValues(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func runNd2HackerTest() {
+	inPort := flag.Uint("ip", 0, "The port to listen to")
+	outPort := flag.Uint("op", 0, "The port to send to")
+	outChan := flag.Uint("c", 0, "The channel to send to")
+	flag.Parse()
+
+	nd2Hacker, err := cctools.NewNd2Hacker(uint8(*inPort), uint8(*outPort), uint8(*outChan))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-sigChan
+		nd2Hacker.Stop()
+	}()
+	if err := nd2Hacker.Test(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
