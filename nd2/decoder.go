@@ -12,18 +12,20 @@ import (
 
 type Nd2Decoder struct {
 	nd2Conn                 *Nd2Connection
+	baseChannel             uint8
 	shutdownChan            chan interface{}
 	bitRanges               map[uint8]*BitRange
 	sysexControllerValueMap map[uint8]map[uint8]uint8
 }
 
-func NewNd2Decoder(inPort, outPort uint, outChan uint8) (*Nd2Decoder, error) {
-	nd2Conn, err := NewNd2Connection(inPort, outPort, outChan)
+func NewNd2Decoder(inPort, outPort uint, baseChan uint8) (*Nd2Decoder, error) {
+	nd2Conn, err := NewNd2Connection(inPort, outPort)
 	if err != nil {
 		return nil, err
 	}
 	return &Nd2Decoder{
 		nd2Conn:      nd2Conn,
+		baseChannel:  baseChan,
 		shutdownChan: make(chan interface{}, 1),
 	}, nil
 }
@@ -52,7 +54,7 @@ func (decoder *Nd2Decoder) findSimpleControllerBitRanges() error {
 	var c uint8
 	for _, c = range SimpleNd2Controllers {
 		first, last, err := decoder.findBitRanges(128, func(v uint8) error {
-			return decoder.nd2Conn.SendControlChange(c, v)
+			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, c, v)
 		})
 		if err != nil {
 			return errors.Wrapf(err, "cannot get bit indexes for controller %d", c)
@@ -72,11 +74,11 @@ func (decoder *Nd2Decoder) findLsbMsbControllerBitRanges() error {
 		// LSB
 		lsbFirst, lsbLast, err := decoder.findBitRanges(128, func(v uint8) error {
 			// send LSB of v
-			if err := decoder.nd2Conn.SendControlChange(lsbMsb[0], v); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[0], v); err != nil {
 				return err
 			}
 			// send MSB of zero
-			return decoder.nd2Conn.SendControlChange(lsbMsb[1], 0)
+			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[1], 0)
 		})
 		if err != nil {
 			return err
@@ -91,11 +93,11 @@ func (decoder *Nd2Decoder) findLsbMsbControllerBitRanges() error {
 		}
 		msbFirst, msbLast, err := decoder.findBitRanges(max, func(v uint8) error {
 			// send LSB of zero
-			if err := decoder.nd2Conn.SendControlChange(lsbMsb[0], 0); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[0], 0); err != nil {
 				return err
 			}
 			// send MSB of v
-			return decoder.nd2Conn.SendControlChange(lsbMsb[1], v)
+			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[1], v)
 		})
 		if err != nil {
 			return err
@@ -108,7 +110,7 @@ func (decoder *Nd2Decoder) findLsbMsbControllerBitRanges() error {
 
 func (decoder *Nd2Decoder) findBitRanges(max uint8, setFunc func(uint8) error) (int, int, error) {
 	// get zero
-	if err := decoder.resetCcs(); err != nil {
+	if err := decoder.resetCcs(decoder.baseChannel); err != nil {
 		return -1, -1, errors.Wrap(err, "cannot reset control change data")
 	}
 	if err := decoder.nd2Conn.SendProgramRequest(); err != nil {
@@ -193,19 +195,19 @@ func getDifferences(bts1, bts2 []byte) (int, int) {
 	return (firstByte * 8) + firstBit, (lastByte * 8) + lastBit
 }
 
-func (decoder *Nd2Decoder) resetCcs() error {
+func (decoder *Nd2Decoder) resetCcs(channel uint8) error {
 	var c uint8
 	for _, c = range SimpleNd2Controllers {
-		if err := decoder.nd2Conn.SendControlChange(c, 0); err != nil {
+		if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, c, 0); err != nil {
 			return err
 		}
 	}
 	for _, lsbMsb := range Nd2LsbMsbControllers {
 		// LSB then MSB
-		if err := decoder.nd2Conn.SendControlChange(lsbMsb[0], 0); err != nil {
+		if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[0], 0); err != nil {
 			return err
 		}
-		if err := decoder.nd2Conn.SendControlChange(lsbMsb[1], 0); err != nil {
+		if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[1], 0); err != nil {
 			return err
 		}
 	}
@@ -231,7 +233,7 @@ func (decoder *Nd2Decoder) FindControllerSysExValues() error {
 func (decoder *Nd2Decoder) findSimpleControllerSysExValues() error {
 	for _, c := range SimpleNd2Controllers {
 		if err := decoder.findControllerSysExValues(c, func(v uint8) error {
-			return decoder.nd2Conn.SendControlChange(c, v)
+			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, c, v)
 		}); err != nil {
 			return err
 		}
@@ -243,20 +245,20 @@ func (decoder *Nd2Decoder) findLsbMsbControllerSysExValues() error {
 	for _, msbLsb := range Nd2LsbMsbControllers {
 		// LSB
 		if err := decoder.findControllerSysExValues(msbLsb[0], func(v uint8) error {
-			if err := decoder.nd2Conn.SendControlChange(msbLsb[0], v); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[0], v); err != nil {
 				return err
 			}
-			return decoder.nd2Conn.SendControlChange(msbLsb[1], 0)
+			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[1], 0)
 		}); err != nil {
 			return err
 		}
 
 		// MSB
 		if err := decoder.findControllerSysExValues(msbLsb[1], func(v uint8) error {
-			if err := decoder.nd2Conn.SendControlChange(msbLsb[0], 0); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[0], 0); err != nil {
 				return err
 			}
-			return decoder.nd2Conn.SendControlChange(msbLsb[1], v)
+			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[1], v)
 		}); err != nil {
 			return err
 		}
@@ -266,7 +268,7 @@ func (decoder *Nd2Decoder) findLsbMsbControllerSysExValues() error {
 }
 
 func (decoder *Nd2Decoder) findControllerSysExValues(c uint8, setFunc func(v uint8) error) error {
-	if err := decoder.resetCcs(); err != nil {
+	if err := decoder.resetCcs(decoder.baseChannel); err != nil {
 		return errors.Wrap(err, "cannot reset controller values")
 	}
 	var v uint8
@@ -307,19 +309,24 @@ func (decoder *Nd2Decoder) Test() error {
 
 	randomGen := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	controllerValues := map[uint8][]uint8{}
 	for i := 0; i < 100; i++ {
 		fmt.Printf("Test %d\n", i+1)
-		// generate and send random cc values
-		rand := make([]uint8, len(Nd2Controllers))
-		for j := 0; j < len(rand); j++ {
-			if Nd2Controllers[j] == 29 { // special case, above 71 fucks it
-				rand[j] = uint8(randomGen.Intn(72))
-			} else {
-				rand[j] = uint8(randomGen.Intn(128))
+		var j uint8
+		for j = 0; j < 1; j++ {
+			// generate and random cc values
+			rand := make([]uint8, len(Nd2Controllers))
+			for j := 0; j < len(rand); j++ {
+				if Nd2Controllers[j] == 29 { // special case, above 71 fucks it
+					rand[j] = uint8(randomGen.Intn(72))
+				} else {
+					rand[j] = uint8(randomGen.Intn(128))
+				}
 			}
+			controllerValues[j] = rand
 		}
 
-		normalised, err := decoder.sendAndParseControlChanges(rand)
+		normalised, err := decoder.sendAndParseControlChanges(controllerValues)
 		if err != nil {
 			return err
 		}
@@ -336,10 +343,12 @@ func (decoder *Nd2Decoder) Test() error {
 	return nil
 }
 
-func (decoder *Nd2Decoder) sendAndParseControlChanges(values []uint8) ([]uint8, error) {
-	for i, c := range Nd2Controllers {
-		if err := decoder.nd2Conn.SendControlChange(c, values[i]); err != nil {
-			return nil, err
+func (decoder *Nd2Decoder) sendAndParseControlChanges(controllerValues map[uint8][]uint8) (map[uint8][]uint8, error) {
+	for v, values := range controllerValues {
+		for i, c := range Nd2Controllers {
+			if err := decoder.nd2Conn.SendControlChange(v+decoder.baseChannel, c, values[i]); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -352,21 +361,24 @@ func (decoder *Nd2Decoder) sendAndParseControlChanges(values []uint8) ([]uint8, 
 		return nil, errors.New("cancelled")
 	case sysExMsg := <-decoder.nd2Conn.responseChan:
 		// transform sysex into cc values
-		parsed := make([]uint8, len(Nd2Controllers))
-		sysExVals := make([]uint8, len(Nd2Controllers))
-		for j, c := range Nd2Controllers {
-			program := Nd2ProgramSysex(sysExMsg)
-			controllerRange := decoder.bitRanges[c]
-			sysExVal := program.GetSysExValue(controllerRange.First+(HeaderBytes*8), controllerRange.Last+(HeaderBytes*8))
-			sysExVals[j] = sysExVal
-			cc, ok := decoder.sysexControllerValueMap[c][sysExVal]
-			if !ok {
-				return nil, errors.Errorf("No value found for controller %d and byte value %d", c, sysExVal)
+		program := Nd2ProgramSysex(sysExMsg)
+		returnValues := map[uint8][]uint8{}
+		for v := 0; v < 1; v++ {
+			parsed := make([]uint8, len(Nd2Controllers))
+			for j, c := range Nd2Controllers {
+				controllerRange := decoder.bitRanges[c]
+				voiceStartBit := (HeaderBytes + (v * VoiceBytes)) * 8
+				sysExVal := program.GetSysExValue(voiceStartBit+controllerRange.First, voiceStartBit+controllerRange.Last)
+				controllerVal, ok := decoder.sysexControllerValueMap[c][sysExVal]
+				if !ok {
+					return nil, errors.Errorf("No value found for controller %d and byte value %d", c, sysExVal)
+				}
+				parsed[j] = controllerVal
 			}
-			parsed[j] = cc
+			returnValues[uint8(v)] = parsed
 		}
 
-		return parsed, nil
+		return returnValues, nil
 	}
 }
 

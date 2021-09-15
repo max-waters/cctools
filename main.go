@@ -15,7 +15,7 @@ const CommandListen = "listen"
 const CommandSend = "send"
 const CommandNordAcr = "nord-lead-acr"
 const CommandNordDrumHack = "nd2-decode"
-const CommandNordDrumHackTest = "nd2-hack-test"
+const CommandNordDrumHackTest = "nd2-decode-test"
 const CommandLog = "log"
 
 func main() {

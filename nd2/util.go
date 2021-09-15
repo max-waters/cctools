@@ -101,7 +101,7 @@ type Nd2Connection struct {
 	responseChan chan sysex.SysEx
 }
 
-func NewNd2Connection(inPort, outPort uint, outChan uint8) (nd2c *Nd2Connection, errVal error) {
+func NewNd2Connection(inPort, outPort uint) (nd2c *Nd2Connection, errVal error) {
 	conn := &Nd2Connection{
 		responseChan: make(chan sysex.SysEx, 1),
 	}
@@ -128,7 +128,6 @@ func NewNd2Connection(inPort, outPort uint, outChan uint8) (nd2c *Nd2Connection,
 	fmt.Printf("Listening to port %d (%s)\n", in.Number(), in.String())
 
 	conn.writer = writer.New(out)
-	conn.writer.SetChannel(outChan)
 
 	return conn, nil
 }
@@ -142,7 +141,8 @@ func (conn *Nd2Connection) SendProgramRequest() error {
 	return nil
 }
 
-func (conn *Nd2Connection) SendControlChange(controller, value uint8) error {
+func (conn *Nd2Connection) SendControlChange(channel, controller, value uint8) error {
+	conn.writer.SetChannel(channel)
 	if err := writer.ControlChange(conn.writer, controller, value); err != nil {
 		return errors.Wrap(err, "error sending control change message")
 	}
