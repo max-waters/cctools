@@ -9,78 +9,9 @@ import (
 
 	"github.com/gocarina/gocsv"
 	"gitlab.com/gomidi/midi"
-	driver "gitlab.com/gomidi/rtmididrv"
 )
 
 const fileHeader = "controller,value\n"
-
-func getMidiOutPort(port uint8) (outputPort midi.Out, closeFunc func() error, errVal error) {
-	drv, err := driver.New()
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() {
-		if errVal != nil && drv != nil {
-			drv.Close()
-		}
-	}()
-
-	outs, err := drv.Outs()
-	if err != nil {
-		return nil, nil, err
-	}
-	if int(port) > len(outs) {
-		return nil, nil, fmt.Errorf("unknown port number: %d", port)
-	}
-
-	out := outs[port]
-	if err := out.Open(); err != nil {
-		return nil, nil, err
-	}
-
-	closeFunc = func() error {
-		if err := drv.Close(); err != nil {
-			return err
-		}
-		return out.Close()
-	}
-
-	return out, closeFunc, nil
-}
-
-func getMidiInPort(port uint8) (inputPort midi.In, closeFunc func() error, errVal error) {
-	drv, err := driver.New()
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() {
-		if errVal != nil && drv != nil {
-			drv.Close()
-		}
-	}()
-
-	ins, err := drv.Ins()
-	if err != nil {
-		return nil, nil, err
-	}
-	if int(port) > len(ins) {
-		return nil, nil, fmt.Errorf("unknown port number: %d", port)
-	}
-
-	in := ins[port]
-	if err := in.Open(); err != nil {
-		return nil, nil, err
-	}
-
-	closeFunc = func() error {
-		if err := drv.Close(); err != nil {
-			return err
-		}
-		return in.Close()
-	}
-
-	return in, closeFunc, nil
-}
 
 func printInPorts(ins []midi.In) {
 	if len(ins) == 0 {

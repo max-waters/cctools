@@ -11,10 +11,11 @@ import (
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
+	"mvw.org/cctools/util"
 )
 
 type ControlChangeListener struct {
-	port       uint8
+	port       uint
 	channel    uint8
 	in         midi.In
 	reader     *reader.Reader
@@ -22,7 +23,7 @@ type ControlChangeListener struct {
 	closeFunc  func() error
 }
 
-func NewControlChangeListener(port, channel uint8, notifyFunc func(controller, value uint8)) *ControlChangeListener {
+func NewControlChangeListener(port uint, channel uint8, notifyFunc func(controller, value uint8)) *ControlChangeListener {
 	return &ControlChangeListener{
 		port:       port,
 		channel:    channel,
@@ -31,7 +32,7 @@ func NewControlChangeListener(port, channel uint8, notifyFunc func(controller, v
 }
 
 func (ccl *ControlChangeListener) Start() error {
-	in, closeFunc, err := getMidiInPort(ccl.port)
+	in, closeFunc, err := util.GetMidiInPort(ccl.port)
 	if err != nil {
 		return err
 	}
@@ -72,7 +73,7 @@ type ControlChangeListenerView struct {
 	timestamp          bool
 }
 
-func NewControlChangeListenerView(port, channel uint8, outputFile string, timestamp bool) *ControlChangeListenerView {
+func NewControlChangeListenerView(port uint, channel uint8, outputFile string, timestamp bool) *ControlChangeListenerView {
 	cclv := &ControlChangeListenerView{
 		controllerValueMap: map[uint8]uint8{},
 		outputFile:         outputFile,
@@ -203,11 +204,11 @@ func (cclv *ControlChangeListenerView) saveFile() {
 }
 
 type MidiLogger struct {
-	port         uint8
+	port         uint
 	shutdownChan chan interface{}
 }
 
-func NewMidiLogger(port uint8) *MidiLogger {
+func NewMidiLogger(port uint) *MidiLogger {
 	return &MidiLogger{
 		port:         port,
 		shutdownChan: make(chan interface{}, 1),
@@ -215,7 +216,7 @@ func NewMidiLogger(port uint8) *MidiLogger {
 }
 
 func (logger *MidiLogger) Start() error {
-	in, closeFunc, err := getMidiInPort(logger.port)
+	in, closeFunc, err := util.GetMidiInPort(logger.port)
 	if err != nil {
 		return err
 	}

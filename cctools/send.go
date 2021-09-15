@@ -5,16 +5,17 @@ import (
 
 	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/writer"
+	"mvw.org/cctools/util"
 )
 
-func SendControlChangeData(port, channel uint8, filename string) error {
+func SendControlChangeData(port uint, channel uint8, filename string) error {
 	controllerValueMap, err := loadControllerValueMap(filename)
 	if err != nil {
 		fmt.Printf("Cannot load control change data from file '%s': %s\n", filename, err)
 		return err
 	}
 
-	out, closeFunc, err := getMidiOutPort(port)
+	out, closeFunc, err := util.GetMidiOutPort(port)
 	if err != nil {
 		fmt.Printf("Error opening MIDI port: %s\n", err)
 		return err
@@ -39,8 +40,8 @@ func SendControlChangeData(port, channel uint8, filename string) error {
 	return nil
 }
 
-func SendAllControllerRequest(port, slot, globalChan uint8) error {
-	out, outCloseFunc, err := getMidiOutPort(port)
+func SendAllControllerRequest(port uint, slot, globalChan uint8) error {
+	out, outCloseFunc, err := util.GetMidiOutPort(port)
 	if err != nil {
 		fmt.Printf("Error opening MIDI out port: %s\n", err)
 		return err
@@ -59,28 +60,4 @@ func SendAllControllerRequest(port, slot, globalChan uint8) error {
 
 	fmt.Println("Done")
 	return nil
-}
-
-func SendNd2Sysex(port uint8) error {
-	out, outCloseFunc, err := getMidiOutPort(port)
-	if err != nil {
-		fmt.Printf("Error opening MIDI out port: %s\n", err)
-		return err
-	}
-	defer outCloseFunc()
-
-	w := writer.New(out)
-	//sysEx := []byte{240, 51, 127, 127, 8, 3, 7, 64, 0, 14, 247}
-	sysEx := []byte{51, 127, 127, 8, 3, 5, 0, 19}
-	m := sysex.SysEx(sysEx)
-	fmt.Printf("Sending sysex '%v' on port %d (%s)", m.Raw(), out.Number(), out.String())
-
-	if err := writer.SysEx(w, sysEx); err != nil {
-		fmt.Printf("Error sending SysEx message: %s", err)
-		return err
-	}
-
-	fmt.Println("Done")
-	return nil
-
 }

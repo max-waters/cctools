@@ -8,17 +8,14 @@ import (
 	"syscall"
 
 	"mvw.org/cctools/cctools"
-	// when using portmidi, replace the line above with
-	// driver gitlab.com/gomidi/portmididrv
+	"mvw.org/cctools/nd2"
 )
 
 const CommandListen = "listen"
 const CommandSend = "send"
-const CommandList = "list"
 const CommandNordAcr = "nord-lead-acr"
-const CommandNordDrumHack = "nd2-hack"
+const CommandNordDrumHack = "nd2-decode"
 const CommandNordDrumHackTest = "nd2-hack-test"
-const CommandNordDrumSysex = "nd2-sysex"
 const CommandLog = "log"
 
 func main() {
@@ -33,18 +30,14 @@ func main() {
 		runControlChangeListener()
 	case CommandSend:
 		runControlChangeSender()
-	case CommandList:
-		runPortLister()
 	case CommandNordAcr:
 		runNordLeadAcr()
 	case CommandLog:
 		runMidiLogger()
 	case CommandNordDrumHack:
-		runNd2Hacker()
+		runNd2Decoder()
 	case CommandNordDrumHackTest:
-		runNd2HackerTest()
-	case CommandNordDrumSysex:
-		runNd2Sysex()
+		runNd2DecoderTest()
 	default:
 		fmt.Printf("Unknown command: '%s'\n", command)
 	}
@@ -57,7 +50,7 @@ func runControlChangeListener() {
 	timestamp := flag.Bool("t", false, "Append timestamp to filename")
 	flag.Parse()
 
-	cclv := cctools.NewControlChangeListenerView(uint8(*port), uint8(*channel), *outputfile, *timestamp)
+	cclv := cctools.NewControlChangeListenerView(uint(*port), uint8(*channel), *outputfile, *timestamp)
 	if err := cclv.Start(); err != nil {
 		os.Exit(1)
 	}
@@ -69,7 +62,7 @@ func runControlChangeSender() {
 	inputfile := flag.String("f", "", "Input file name")
 	flag.Parse()
 
-	if err := cctools.SendControlChangeData(uint8(*port), uint8(*channel), *inputfile); err != nil {
+	if err := cctools.SendControlChangeData(uint(*port), uint8(*channel), *inputfile); err != nil {
 		os.Exit(1)
 	}
 }
@@ -81,7 +74,7 @@ func runMidiLogger() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	midiLogger := cctools.NewMidiLogger(uint8(*port))
+	midiLogger := cctools.NewMidiLogger(uint(*port))
 	go func() {
 		<-sigChan
 		midiLogger.Stop()
@@ -98,18 +91,18 @@ func runNordLeadAcr() {
 	globalChan := flag.Uint("g", 0, "The global midi channel")
 	flag.Parse()
 
-	if err := cctools.SendAllControllerRequest(uint8(*port), uint8(*slot), uint8(*globalChan)); err != nil {
+	if err := cctools.SendAllControllerRequest(uint(*port), uint8(*slot), uint8(*globalChan)); err != nil {
 		os.Exit(1)
 	}
 }
 
-func runNd2Hacker() {
+func runNd2Decoder() {
 	inPort := flag.Uint("ip", 0, "The port to listen to")
 	outPort := flag.Uint("op", 0, "The port to send to")
 	outChan := flag.Uint("c", 0, "The channel to send to")
 	flag.Parse()
 
-	nd2Hacker, err := cctools.NewNd2Hacker(uint8(*inPort), uint8(*outPort), uint8(*outChan))
+	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*outChan))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -119,21 +112,21 @@ func runNd2Hacker() {
 	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-sigChan
-		nd2Hacker.Stop()
+		nd2Decoder.Stop()
 	}()
-	if err := nd2Hacker.FindControllerByteValues(); err != nil {
+	if err := nd2Decoder.Run(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func runNd2HackerTest() {
+func runNd2DecoderTest() {
 	inPort := flag.Uint("ip", 0, "The port to listen to")
 	outPort := flag.Uint("op", 0, "The port to send to")
-	outChan := flag.Uint("c", 0, "The channel to send to")
+	outChan := flag.Uint("c", 0, "The channel for the first voice")
 	flag.Parse()
 
-	nd2Hacker, err := cctools.NewNd2Hacker(uint8(*inPort), uint8(*outPort), uint8(*outChan))
+	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*outChan))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -143,23 +136,10 @@ func runNd2HackerTest() {
 	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-sigChan
-		nd2Hacker.Stop()
+		nd2Decoder.Stop()
 	}()
-	if err := nd2Hacker.Test(); err != nil {
+	if err := nd2Decoder.Test(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-func runNd2Sysex() {
-	port := flag.Uint("p", 0, "The port to send to")
-	flag.Parse()
-
-	if err := cctools.SendNd2Sysex(uint8(*port)); err != nil {
-		os.Exit(1)
-	}
-}
-
-func runPortLister() {
-
 }
