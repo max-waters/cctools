@@ -8,21 +8,9 @@ import (
 	"strings"
 
 	"github.com/gocarina/gocsv"
-	"gitlab.com/gomidi/midi"
 )
 
 const fileHeader = "controller,value\n"
-
-func printInPorts(ins []midi.In) {
-	if len(ins) == 0 {
-		fmt.Println("No MIDI in ports found")
-		return
-	}
-	fmt.Println("MIDI in ports:")
-	for _, port := range ins {
-		fmt.Printf("%v: %s\n", port.Number(), port.String())
-	}
-}
 
 func loadControllerValueMap(filename string) (map[uint8]uint8, error) {
 	type controllerValuePair struct {
@@ -87,13 +75,4 @@ func formatControllerValuePair(controller uint8, value *uint8) string {
 		return fmt.Sprintf("%03d:%03d", controller, *value)
 	}
 	return fmt.Sprintf("%03d:   ", controller)
-}
-
-func ToBinaryString(u uint8) string {
-	s := ""
-	for i := 0; i < 8; i++ {
-		s = fmt.Sprintf("%d%s", u%2, s)
-		u /= 2
-	}
-	return s
 }

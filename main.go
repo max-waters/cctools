@@ -9,14 +9,16 @@ import (
 
 	"mvw.org/cctools/cctools"
 	"mvw.org/cctools/nd2"
+	"mvw.org/cctools/util"
 )
 
+const CommandList = "list"
+const CommandLog = "log"
 const CommandListen = "listen"
 const CommandSend = "send"
 const CommandNordAcr = "nord-lead-acr"
-const CommandNordDrumHack = "nd2-decode"
-const CommandNordDrumHackTest = "nd2-decode-test"
-const CommandLog = "log"
+const CommandNd2Decode = "nd2-decode"
+const CommandNd2DecodeTest = "nd2-test"
 
 func main() {
 	if len(os.Args) <= 1 {
@@ -34,9 +36,11 @@ func main() {
 		runNordLeadAcr()
 	case CommandLog:
 		runMidiLogger()
-	case CommandNordDrumHack:
+	case CommandList:
+		listPorts()
+	case CommandNd2Decode:
 		runNd2Decoder()
-	case CommandNordDrumHackTest:
+	case CommandNd2DecodeTest:
 		runNd2DecoderTest()
 	default:
 		fmt.Printf("Unknown command: '%s'\n", command)
@@ -52,6 +56,7 @@ func runControlChangeListener() {
 
 	cclv := cctools.NewControlChangeListenerView(uint(*port), uint8(*channel), *outputfile, *timestamp)
 	if err := cclv.Start(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
@@ -71,16 +76,10 @@ func runMidiLogger() {
 	port := flag.Uint("p", 0, "The port to listen to")
 	flag.Parse()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	midiLogger := cctools.NewMidiLogger(uint(*port))
-	go func() {
-		<-sigChan
-		midiLogger.Stop()
-	}()
-
+	midiLogger := util.NewMidiLogger(uint(*port))
+	CallOnShutdownSignal(midiLogger.Stop)
 	if err := midiLogger.Start(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
@@ -97,9 +96,9 @@ func runNordLeadAcr() {
 }
 
 func runNd2Decoder() {
-	inPort := flag.Uint("ip", 0, "The port to listen to")
-	outPort := flag.Uint("op", 0, "The port to send to")
-	outChan := flag.Uint("c", 0, "The channel to send to")
+	inPort := flag.Uint("i", 0, "The port to listen to")
+	outPort := flag.Uint("o", 0, "The port to send to")
+	outChan := flag.Uint("c", 8, "The channel for the first voice")
 	flag.Parse()
 
 	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*outChan))
@@ -108,12 +107,7 @@ func runNd2Decoder() {
 		os.Exit(1)
 	}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() {
-		<-sigChan
-		nd2Decoder.Stop()
-	}()
+	CallOnShutdownSignal(nd2Decoder.Stop)
 	if err := nd2Decoder.Run(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -121,9 +115,9 @@ func runNd2Decoder() {
 }
 
 func runNd2DecoderTest() {
-	inPort := flag.Uint("ip", 0, "The port to listen to")
-	outPort := flag.Uint("op", 0, "The port to send to")
-	outChan := flag.Uint("c", 0, "The channel for the first voice")
+	inPort := flag.Uint("i", 0, "The port to listen to")
+	outPort := flag.Uint("o", 0, "The port to send to")
+	outChan := flag.Uint("c", 8, "The channel for the first voice")
 	flag.Parse()
 
 	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*outChan))
@@ -132,14 +126,25 @@ func runNd2DecoderTest() {
 		os.Exit(1)
 	}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() {
-		<-sigChan
-		nd2Decoder.Stop()
-	}()
+	CallOnShutdownSignal(nd2Decoder.Stop)
 	if err := nd2Decoder.Test(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func listPorts() {
+	if err := util.ListPorts(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func CallOnShutdownSignal(f func()) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-sigChan
+		f()
+	}()
 }

@@ -4,8 +4,93 @@ import (
 	"fmt"
 
 	"gitlab.com/gomidi/midi"
+	"gitlab.com/gomidi/midi/midimessage/sysex"
+	"gitlab.com/gomidi/midi/reader"
 	driver "gitlab.com/gomidi/rtmididrv"
 )
+
+type MidiLogger struct {
+	port         uint
+	shutdownChan chan interface{}
+}
+
+func NewMidiLogger(port uint) *MidiLogger {
+	return &MidiLogger{
+		port:         port,
+		shutdownChan: make(chan interface{}, 1),
+	}
+}
+
+func (logger *MidiLogger) Start() error {
+	in, closeFunc, err := GetMidiInPort(logger.port)
+	if err != nil {
+		return err
+	}
+	defer closeFunc()
+
+	reader := reader.New(
+		reader.NoLogger(),
+		reader.Each(func(pos *reader.Position, msg midi.Message) {
+			fmt.Println(msg.String())
+			if sysExMsg, ok := msg.(sysex.SysEx); ok {
+				fmt.Println(sysExMsg.Raw())
+			}
+		}),
+	)
+
+	fmt.Printf("Listening to port %d (%s)\n", in.Number(), in.String())
+	reader.ListenTo(in)
+	<-logger.shutdownChan
+	return nil
+}
+
+func (logger *MidiLogger) Stop() {
+	logger.shutdownChan <- nil
+}
+
+func ListPorts() (errVal error) {
+	drv, err := driver.New()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if errVal != nil {
+			drv.Close()
+		}
+	}()
+
+	// ins
+	ins, err := drv.Ins()
+	if err != nil {
+		return err
+	}
+	if len(ins) == 0 {
+		fmt.Println("No MIDI in ports found")
+		return
+	} else {
+		fmt.Println("MIDI in ports:")
+		for _, port := range ins {
+			fmt.Printf("%v: %s\n", port.Number(), port.String())
+		}
+	}
+
+	// outs
+	outs, err := drv.Outs()
+	if err != nil {
+		return err
+	}
+	if len(outs) == 0 {
+		fmt.Println("No MIDI out ports found")
+		return
+	} else {
+		fmt.Println("MIDI out ports:")
+		for _, port := range outs {
+			fmt.Printf("%v: %s\n", port.Number(), port.String())
+		}
+	}
+
+	return nil
+}
 
 func GetMidiPorts(inPortNum, outPortNum uint) (inPort midi.In, outPort midi.Out, closeFunc func() error, errVal error) {
 	drv, err := driver.New()

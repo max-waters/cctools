@@ -9,7 +9,6 @@ import (
 	"github.com/eiannone/keyboard"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
-	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
 	"mvw.org/cctools/util"
 )
@@ -201,45 +200,4 @@ func (cclv *ControlChangeListenerView) saveFile() {
 	} else {
 		cclv.log("Saved to file %s", outputFile)
 	}
-}
-
-type MidiLogger struct {
-	port         uint
-	shutdownChan chan interface{}
-}
-
-func NewMidiLogger(port uint) *MidiLogger {
-	return &MidiLogger{
-		port:         port,
-		shutdownChan: make(chan interface{}, 1),
-	}
-}
-
-func (logger *MidiLogger) Start() error {
-	in, closeFunc, err := util.GetMidiInPort(logger.port)
-	if err != nil {
-		return err
-	}
-	defer closeFunc()
-
-	reader := reader.New(
-		reader.NoLogger(),
-		reader.Each(func(pos *reader.Position, msg midi.Message) {
-			fmt.Println(msg.String())
-			if sysExMsg, ok := msg.(sysex.SysEx); ok {
-				fmt.Println(sysExMsg.Raw())
-			}
-		}),
-	)
-
-	fmt.Printf("Listening to port %d (%s)\n", in.Number(), in.String())
-	reader.ListenTo(in)
-
-	<-logger.shutdownChan
-
-	return nil
-}
-
-func (logger *MidiLogger) Stop() {
-	logger.shutdownChan <- nil
 }

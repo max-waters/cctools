@@ -15,24 +15,28 @@ import (
 	"mvw.org/cctools/util"
 )
 
-// all controllers, arranged with LSB/MSB pairs in order
+// All controllers, arranged with LSB/MSB pairs in order
 // controllers 0 and 32 (bank select), and 70 (channel focus) are ignored
 var Nd2Controllers = []uint8{
 	// simple controllers
-	7, 10, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 30,
-	46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+	7, 10, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+	23, 24, 25, 26, 27, 28, 30, 46, 47, 48, 49,
+	50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
 	// LSB/MSB pairs
 	61, 29, 63, 31}
 
-// simple controllers
-var SimpleNd2Controllers = []uint8{7, 10, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 30,
-	46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59}
+// Simple controllers
+var SimpleNd2Controllers = []uint8{
+	7, 10, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+	23, 24, 25, 26, 27, 28, 30, 46, 47, 48, 49,
+	50, 51, 52, 53, 54, 55, 56, 57, 58, 59}
 
-// controllers with LSB/MSB pairs
+// Controllers with LSB/MSB pairs
 var TonePitchController = []uint8{63, 31}
 var EchoBbmController = []uint8{61, 29}
 var Nd2LsbMsbControllers = [][]uint8{TonePitchController, EchoBbmController}
 
+// SysEx program msg format
 const ProgramBytes = 210
 const HeaderBytes = 12
 const VoiceBytes = 32
@@ -43,6 +47,8 @@ var ControllerBitRanges []byte
 
 //go:embed data/controller-value-sysex-map.csv
 var ControllerValueSysexMap []byte
+
+const ConnectionSleepTime = time.Millisecond * 50
 
 var MsbMaskMap = map[int]uint8{
 	1: 0b1111111, 2: 0b111111, 3: 0b11111, 4: 0b1111, 5: 0b111, 6: 0b11, 7: 0b1,
@@ -60,19 +66,19 @@ func LoadSysexControllerValueMap() (map[uint8]map[uint8]uint8, error) {
 		return nil, err
 	}
 
-	cvbMap := map[uint8]map[uint8]uint8{}
+	scvMap := map[uint8]map[uint8]uint8{}
 	for _, row := range rows {
-		bts, ok := cvbMap[row.Controller]
+		bts, ok := scvMap[row.Controller]
 		if !ok {
 			bts = map[uint8]uint8{}
-			cvbMap[row.Controller] = bts
+			scvMap[row.Controller] = bts
 		}
 		current, ok := bts[row.SysexValue]
 		if !ok || current > row.ControllerValue { // always use lowest value
 			bts[row.SysexValue] = row.ControllerValue
 		}
 	}
-	return cvbMap, nil
+	return scvMap, nil
 }
 
 type BitRange struct {
@@ -82,16 +88,16 @@ type BitRange struct {
 }
 
 func LoadControllerBitRanges() (map[uint8]*BitRange, error) {
-	ranges := []*BitRange{}
-	if err := gocsv.UnmarshalBytes(ControllerBitRanges, &ranges); err != nil {
+	rows := []*BitRange{}
+	if err := gocsv.UnmarshalBytes(ControllerBitRanges, &rows); err != nil {
 		return nil, err
 	}
 
-	bitRanges := map[uint8]*BitRange{}
-	for _, bitRange := range ranges {
-		bitRanges[bitRange.Controller] = bitRange
+	controllerBitRanges := map[uint8]*BitRange{}
+	for _, bitRange := range rows {
+		controllerBitRanges[bitRange.Controller] = bitRange
 	}
-	return bitRanges, nil
+	return controllerBitRanges, nil
 }
 
 type Nd2Connection struct {
@@ -137,7 +143,7 @@ func (conn *Nd2Connection) SendProgramRequest() error {
 	if err := writer.SysEx(conn.writer, sysEx); err != nil {
 		return errors.Wrap(err, "error sending SysEx message")
 	}
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(ConnectionSleepTime)
 	return nil
 }
 
@@ -146,7 +152,7 @@ func (conn *Nd2Connection) SendControlChange(channel, controller, value uint8) e
 	if err := writer.ControlChange(conn.writer, controller, value); err != nil {
 		return errors.Wrap(err, "error sending control change message")
 	}
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(ConnectionSleepTime)
 	return nil
 }
 
