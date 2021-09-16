@@ -189,7 +189,7 @@ func RunNd2Test() {
 
 func ExitOnErr(err error) {
 	if err != nil {
-		fmt.Printf("%s exited with error: %s", os.Args[0], err)
+		fmt.Printf("%s exited with error: %s\n", os.Args[0], err)
 		os.Exit(1)
 	}
 }
