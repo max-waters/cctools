@@ -1,3 +1,7 @@
+NAME=cctools
+COMPILE_DIR=./bin
+INSTALL_DIR=/usr/local/bin
+
 .PHONY: help test clean cctools install
 .DEFAULT_GOAL := help
 
@@ -8,9 +12,13 @@ test: ## Test all golang packages
 	go test ./...
 
 clean: ## Remove all compiled binaries
-	rm -rf ./bin
+	rm -rf $(COMPILE_DIR)
 
-cctools: clean ## Compile binary
-	go build -o ./bin/cctools main.go 
+build: clean ## Compile binary
+	go build -o $(COMPILE_DIR)/$(NAME) main.go 
 
-install: cctools ## Compile binary and install
+install: build ## Compile binary and install
+	cp $(COMPILE_DIR)/$(NAME) $(INSTALL_DIR)
+
+uninstall:
+	rm $(INSTALL_DIR)/$(NAME)

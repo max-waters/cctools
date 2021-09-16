@@ -49,13 +49,14 @@ func init() {
 	if err := yaml.Unmarshal(DefaultsFileBytes, Defaults); err != nil {
 		panic(err)
 	}
-	fmt.Printf("defaults: %+v\n", Defaults)
 }
 
 func main() {
 	if len(os.Args) <= 1 {
-		fmt.Println("No command supplied")
+		fmt.Printf("No command supplied. ")
+		PrintCommandsAndExit()
 	}
+
 	command := os.Args[1]
 	os.Args = os.Args[1:]
 
@@ -79,8 +80,16 @@ func main() {
 	case CommandNd2Test:
 		runNd2Test()
 	default:
-		fmt.Printf("Unknown command: '%s'\n", command)
+		fmt.Printf("Unknown command: '%s'. ", command)
+		PrintCommandsAndExit()
 	}
+}
+
+func PrintCommandsAndExit() {
+	fmt.Printf("Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n",
+		CommandList, CommandLog, CommandListen, CommandNr2xGet, CommandNr2xSet,
+		CommandNd2Get, CommandNd2Set, CommandNd2Decode, CommandNd2Test)
+	os.Exit(1)
 }
 
 func listPorts() {
