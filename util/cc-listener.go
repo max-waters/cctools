@@ -1,16 +1,13 @@
-package cctools
+package util
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/eiannone/keyboard"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/reader"
-	"mvw.org/cctools/util"
 )
 
 type ControlChangeListener struct {
@@ -31,14 +28,13 @@ func NewControlChangeListener(port uint, channel uint8, notifyFunc func(controll
 }
 
 func (ccl *ControlChangeListener) Start() error {
-	in, closeFunc, err := util.GetMidiInPort(ccl.port)
+	in, closeFunc, err := GetMidiInPort(ccl.port)
 	if err != nil {
 		return err
 	}
 	ccl.in = in
 	ccl.closeFunc = closeFunc
 
-	// to disable logging, pass mid.NoLogger() as option
 	ccl.reader = reader.New(
 		reader.NoLogger(),
 		reader.Each(ccl.processMessage),
@@ -69,14 +65,12 @@ type ControlChangeListenerView struct {
 	inputBuffer        string
 	lastLog            string
 	outputFile         string
-	timestamp          bool
 }
 
-func NewControlChangeListenerView(port uint, channel uint8, outputFile string, timestamp bool) *ControlChangeListenerView {
+func NewControlChangeListenerView(port uint, channel uint8, outputFile string) *ControlChangeListenerView {
 	cclv := &ControlChangeListenerView{
 		controllerValueMap: map[uint8]uint8{},
 		outputFile:         outputFile,
-		timestamp:          timestamp,
 	}
 	cclv.ccl = NewControlChangeListener(port, channel, cclv.update)
 	return cclv
@@ -173,31 +167,26 @@ func (cclv *ControlChangeListenerView) close() {
 	}
 }
 
-func (cclv *ControlChangeListenerView) formatFileName() string {
-	if cclv.timestamp {
-		extension := filepath.Ext(cclv.outputFile)
-		if len(extension) > 0 { // return eg file-timestamp.csv
-			name := strings.TrimSuffix(cclv.outputFile, extension)
-			return fmt.Sprintf("%s-%s%s", name, time.Now().Format(time.RFC3339), extension)
-		}
-		// return file-timestamp
-		return fmt.Sprintf("%s-%s", cclv.outputFile, time.Now().Format(time.RFC3339))
-	}
-	return cclv.outputFile
-}
-
 func (cclv *ControlChangeListenerView) saveFile() {
 	if cclv.outputFile == "" {
 		cclv.log("No output file specified")
 		return
 	}
 
-	outputFile := cclv.formatFileName()
-	cclv.log("Saving to file '%s'", outputFile)
-
-	if err := saveControllerValueMap(outputFile, cclv.controllerValueMap); err != nil {
-		cclv.log("Cannot save to file '%s': %s", outputFile, err)
-	} else {
-		cclv.log("Saved to file %s", outputFile)
+	controllerValues := []*ControllerValue{}
+	for controller, value := range cclv.controllerValueMap {
+		controllerValues = append(controllerValues, &ControllerValue{
+			Controller: controller, Value: value,
+		})
 	}
+	if err := SaveControllerValues(cclv.outputFile, controllerValues); err != nil {
+		cclv.log("Error saving controller values to file: %s", err)
+	}
+}
+
+func formatControllerValuePair(controller uint8, value *uint8) string {
+	if value != nil {
+		return fmt.Sprintf("%03d:%03d", controller, *value)
+	}
+	return fmt.Sprintf("%03d:   ", controller)
 }

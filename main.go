@@ -10,7 +10,6 @@ import (
 	_ "embed"
 
 	"gopkg.in/yaml.v2"
-	"mvw.org/cctools/cctools"
 	"mvw.org/cctools/nd2"
 	"mvw.org/cctools/nr2x"
 	"mvw.org/cctools/util"
@@ -84,20 +83,6 @@ func main() {
 	}
 }
 
-func runControlChangeListener() {
-	port := flag.Uint("p", 0, "The port to listen to")
-	channel := flag.Uint("c", 0, "The channel to listen to")
-	outputfile := flag.String("f", "", "Output file name")
-	timestamp := flag.Bool("t", false, "Append timestamp to filename")
-	flag.Parse()
-
-	cclv := cctools.NewControlChangeListenerView(uint(*port), uint8(*channel), *outputfile, *timestamp)
-	if err := cclv.Start(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-}
-
 func listPorts() {
 	ExitOnErr(util.ListPorts())
 }
@@ -109,6 +94,16 @@ func runMidiLogger() {
 	midiLogger := util.NewMidiLogger(uint(*port))
 	CallOnShutdownSignal(midiLogger.Stop)
 	ExitOnErr(midiLogger.Start())
+}
+
+func runControlChangeListener() {
+	port := flag.Uint("p", 0, "The port to listen to")
+	channel := flag.Uint("c", 0, "The channel to listen to")
+	outputfile := flag.String("f", "", "Output file name")
+	flag.Parse()
+
+	cclv := util.NewControlChangeListenerView(uint(*port), uint8(*channel), *outputfile)
+	ExitOnErr(cclv.Start())
 }
 
 func runNr2xGet() {
