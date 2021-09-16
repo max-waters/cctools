@@ -13,7 +13,6 @@ import (
 type Nd2Decoder struct {
 	nd2Conn                 *Nd2Connection
 	baseChannel             uint8
-	shutdownChan            chan interface{}
 	bitRanges               map[uint8]*BitRange
 	sysexControllerValueMap map[uint8]map[uint8]uint8
 }
@@ -24,9 +23,8 @@ func NewNd2Decoder(inPort, outPort uint, baseChan uint8) (*Nd2Decoder, error) {
 		return nil, err
 	}
 	return &Nd2Decoder{
-		nd2Conn:      nd2Conn,
-		baseChannel:  baseChan,
-		shutdownChan: make(chan interface{}, 1),
+		nd2Conn:     nd2Conn,
+		baseChannel: baseChan,
 	}, nil
 }
 
@@ -113,11 +111,10 @@ func (decoder *Nd2Decoder) findBitRanges(max uint8, setFunc func(uint8) error) (
 	if err := decoder.resetCcs(decoder.baseChannel); err != nil {
 		return -1, -1, errors.Wrap(err, "cannot reset control change data")
 	}
-	if err := decoder.nd2Conn.SendProgramRequest(); err != nil {
+	zeroProgram, err := decoder.nd2Conn.GetProgram()
+	if err != nil {
 		return -1, -1, err
 	}
-	zeroSysExMsg := <-decoder.nd2Conn.responseChan
-	zeroProgram := Nd2ProgramSysex(zeroSysExMsg)
 
 	first := math.MaxInt64
 	last := -1
@@ -128,22 +125,16 @@ func (decoder *Nd2Decoder) findBitRanges(max uint8, setFunc func(uint8) error) (
 			return -1, -1, err
 		}
 
-		if err := decoder.nd2Conn.SendProgramRequest(); err != nil {
+		program, err := decoder.nd2Conn.GetProgram()
+		if err != nil {
 			return -1, -1, err
 		}
-
-		select {
-		case <-decoder.shutdownChan:
-			return -1, -1, errors.New("cancelled")
-		case sysExMsg := <-decoder.nd2Conn.responseChan:
-			program := Nd2ProgramSysex(sysExMsg)
-			thisFirst, thisLast := getDifferences(program.GetVoiceBytes(0), zeroProgram.GetVoiceBytes(0))
-			if thisFirst < first {
-				first = thisFirst
-			}
-			if thisLast > last {
-				last = thisLast
-			}
+		thisFirst, thisLast := getDifferences(program.GetVoiceBytes(0), zeroProgram.GetVoiceBytes(0))
+		if thisFirst < first {
+			first = thisFirst
+		}
+		if thisLast > last {
+			last = thisLast
 		}
 	}
 	return first, last, nil
@@ -217,11 +208,7 @@ func (decoder *Nd2Decoder) resetCcs(channel uint8) error {
 func (decoder *Nd2Decoder) FindControllerSysExValues() error {
 	fmt.Println("controller,controller_value,sysex_value")
 	if len(decoder.bitRanges) == 0 {
-		bitRanges, err := LoadControllerBitRanges()
-		if err != nil {
-			return err
-		}
-		decoder.bitRanges = bitRanges
+		decoder.bitRanges = ControllerBitRanges
 	}
 
 	if err := decoder.findSimpleControllerSysExValues(); err != nil {
@@ -277,38 +264,22 @@ func (decoder *Nd2Decoder) findControllerSysExValues(c uint8, setFunc func(v uin
 			return err
 		}
 
-		if err := decoder.nd2Conn.SendProgramRequest(); err != nil {
+		program, err := decoder.nd2Conn.GetProgram()
+		if err != nil {
 			return err
 		}
 
-		select {
-		case <-decoder.shutdownChan:
-			return errors.New("cancelled")
-		case sysExMsg := <-decoder.nd2Conn.responseChan:
-			program := Nd2ProgramSysex(sysExMsg)
-			controllerRange := decoder.bitRanges[c]
-			sysExVal := program.GetSysExValue(controllerRange.First+(HeaderBytes*8), controllerRange.Last+(HeaderBytes*8))
-			fmt.Printf("%d,%d,%d\n", c, v, sysExVal)
-		}
+		sysExVal := program.GetSysExValue(decoder.baseChannel, decoder.bitRanges[c])
+		fmt.Printf("%d,%d,%d\n", c, v, sysExVal)
 	}
 	return nil
 }
 
 func (decoder *Nd2Decoder) Test() error {
-	controllerValueMap, err := LoadSysexControllerValueMap()
-	if err != nil {
-		return err
-	}
-	decoder.sysexControllerValueMap = controllerValueMap
-
-	controllerBitRanges, err := LoadControllerBitRanges()
-	if err != nil {
-		return err
-	}
-	decoder.bitRanges = controllerBitRanges
+	decoder.sysexControllerValueMap = ControllerValueSysexMap
+	decoder.bitRanges = ControllerBitRanges
 
 	randomGen := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	controllerValues := map[uint8][]uint8{}
 	for i := 0; i < 100; i++ {
 		fmt.Printf("Test %d\n", i+1)
@@ -344,6 +315,7 @@ func (decoder *Nd2Decoder) Test() error {
 }
 
 func (decoder *Nd2Decoder) sendAndParseControlChanges(controllerValues map[uint8][]uint8) (map[uint8][]uint8, error) {
+	// send controller values
 	for v, values := range controllerValues {
 		for i, c := range Nd2Controllers {
 			if err := decoder.nd2Conn.SendControlChange(v+decoder.baseChannel, c, values[i]); err != nil {
@@ -352,36 +324,31 @@ func (decoder *Nd2Decoder) sendAndParseControlChanges(controllerValues map[uint8
 		}
 	}
 
-	if err := decoder.nd2Conn.SendProgramRequest(); err != nil {
+	// get program sysex
+	program, err := decoder.nd2Conn.GetProgram()
+	if err != nil {
 		return nil, err
 	}
 
-	select {
-	case <-decoder.shutdownChan:
-		return nil, errors.New("cancelled")
-	case sysExMsg := <-decoder.nd2Conn.responseChan:
-		// transform sysex into cc values
-		program := Nd2ProgramSysex(sysExMsg)
-		returnValues := map[uint8][]uint8{}
-		for v := 0; v < 1; v++ {
-			parsed := make([]uint8, len(Nd2Controllers))
-			for j, c := range Nd2Controllers {
-				controllerRange := decoder.bitRanges[c]
-				voiceStartBit := (HeaderBytes + (v * VoiceBytes)) * 8
-				sysExVal := program.GetSysExValue(voiceStartBit+controllerRange.First, voiceStartBit+controllerRange.Last)
-				controllerVal, ok := decoder.sysexControllerValueMap[c][sysExVal]
-				if !ok {
-					return nil, errors.Errorf("No value found for controller %d and byte value %d", c, sysExVal)
-				}
-				parsed[j] = controllerVal
+	// transform sysex into controller values
+	returnValues := map[uint8][]uint8{}
+	var v uint8
+	for v = 0; v < 1; v++ {
+		parsed := make([]uint8, len(Nd2Controllers))
+		for j, c := range Nd2Controllers {
+			sysExVal := program.GetSysExValue(v, decoder.bitRanges[c])
+			controllerVal, ok := decoder.sysexControllerValueMap[c][sysExVal]
+			if !ok {
+				return nil, errors.Errorf("No value found for controller %d and byte value %d", c, sysExVal)
 			}
-			returnValues[uint8(v)] = parsed
+			parsed[j] = controllerVal
 		}
-
-		return returnValues, nil
+		returnValues[uint8(v)] = parsed
 	}
+
+	return returnValues, nil
 }
 
 func (decoder *Nd2Decoder) Stop() {
-	decoder.shutdownChan <- nil
+	decoder.nd2Conn.Close()
 }

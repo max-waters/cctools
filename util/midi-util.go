@@ -9,6 +9,17 @@ import (
 	driver "gitlab.com/gomidi/rtmididrv"
 )
 
+type VoiceControllerValue struct {
+	Voice      uint8 `csv:"voice"`
+	Controller uint8 `csv:"controller"`
+	Value      uint8 `csv:"value"`
+}
+
+type ControllerValue struct {
+	Controller uint8 `csv:"controller"`
+	Value      uint8 `csv:"value"`
+}
+
 type MidiLogger struct {
 	port         uint
 	shutdownChan chan interface{}

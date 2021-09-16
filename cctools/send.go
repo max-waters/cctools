@@ -1,13 +1,6 @@
 package cctools
 
-import (
-	"fmt"
-
-	"gitlab.com/gomidi/midi/midimessage/sysex"
-	"gitlab.com/gomidi/midi/writer"
-	"mvw.org/cctools/util"
-)
-
+/*
 func SendControlChangeData(port uint, channel uint8, filename string) error {
 	controllerValueMap, err := loadControllerValueMap(filename)
 	if err != nil {
@@ -61,3 +54,4 @@ func SendAllControllerRequest(port uint, slot, globalChan uint8) error {
 	fmt.Println("Done")
 	return nil
 }
+*/

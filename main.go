@@ -7,18 +7,51 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "embed"
+
+	"gopkg.in/yaml.v2"
 	"mvw.org/cctools/cctools"
 	"mvw.org/cctools/nd2"
+	"mvw.org/cctools/nr2x"
 	"mvw.org/cctools/util"
 )
+
+type DefaultFlags struct {
+	Nr2x struct {
+		InPort         uint  `yaml:"in_port"`
+		OutPort        uint  `yaml:"out_port"`
+		GlobalMidiChan uint8 `yaml:"global_midi_channel"`
+		BaseMidiChan   uint8 `yaml:"base_midi_channel"`
+		Voice          uint8 `yaml:"voice"`
+	} `yaml:"nr2x"`
+	Nd2 struct {
+		InPort       uint  `yaml:"in_port"`
+		OutPort      uint  `yaml:"out_port"`
+		BaseMidiChan uint8 `yaml:"base_midi_channel"`
+	} `yaml:"nd2"`
+}
+
+//go:embed util/data/defaults.yaml
+var DefaultsFileBytes []byte
+var Defaults *DefaultFlags
 
 const CommandList = "list"
 const CommandLog = "log"
 const CommandListen = "listen"
-const CommandSend = "send"
-const CommandNordAcr = "nord-lead-acr"
+const CommandNr2xSet = "nr2x-set"
+const CommandNr2xGet = "nr2x-get"
+const CommandNd2Set = "nd2-set"
+const CommandNd2Get = "nd2-get"
 const CommandNd2Decode = "nd2-decode"
-const CommandNd2DecodeTest = "nd2-test"
+const CommandNd2Test = "nd2-test"
+
+func init() {
+	Defaults = &DefaultFlags{}
+	if err := yaml.Unmarshal(DefaultsFileBytes, Defaults); err != nil {
+		panic(err)
+	}
+	fmt.Printf("defaults: %+v\n", Defaults)
+}
 
 func main() {
 	if len(os.Args) <= 1 {
@@ -28,20 +61,24 @@ func main() {
 	os.Args = os.Args[1:]
 
 	switch command {
-	case CommandListen:
-		runControlChangeListener()
-	case CommandSend:
-		runControlChangeSender()
-	case CommandNordAcr:
-		runNordLeadAcr()
-	case CommandLog:
-		runMidiLogger()
 	case CommandList:
 		listPorts()
+	case CommandLog:
+		runMidiLogger()
+	case CommandListen:
+		runControlChangeListener()
+	case CommandNr2xGet:
+		runNr2xGet()
+	case CommandNr2xSet:
+		runNr2xSet()
+	case CommandNd2Get:
+		runNd2Get()
+	case CommandNd2Set:
+		runNd2Set()
 	case CommandNd2Decode:
 		runNd2Decoder()
-	case CommandNd2DecodeTest:
-		runNd2DecoderTest()
+	case CommandNd2Test:
+		runNd2Test()
 	default:
 		fmt.Printf("Unknown command: '%s'\n", command)
 	}
@@ -61,15 +98,8 @@ func runControlChangeListener() {
 	}
 }
 
-func runControlChangeSender() {
-	port := flag.Uint("p", 0, "The port to send to")
-	channel := flag.Uint("c", 0, "The channel to send to")
-	inputfile := flag.String("f", "", "Input file name")
-	flag.Parse()
-
-	if err := cctools.SendControlChangeData(uint(*port), uint8(*channel), *inputfile); err != nil {
-		os.Exit(1)
-	}
+func listPorts() {
+	ExitOnErr(util.ListPorts())
 }
 
 func runMidiLogger() {
@@ -78,64 +108,84 @@ func runMidiLogger() {
 
 	midiLogger := util.NewMidiLogger(uint(*port))
 	CallOnShutdownSignal(midiLogger.Stop)
-	if err := midiLogger.Start(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	ExitOnErr(midiLogger.Start())
 }
 
-func runNordLeadAcr() {
-	port := flag.Uint("p", 0, "The port to listen to")
-	slot := flag.Uint("s", 0, "The slot to request")
-	globalChan := flag.Uint("g", 0, "The global midi channel")
-	flag.Parse()
+func runNr2xGet() {
+	inPort := flag.Uint("i", Defaults.Nr2x.InPort, "MIDI in port")
+	outPort := flag.Uint("o", Defaults.Nr2x.OutPort, "MIDI out port")
+	globalChan := flag.Uint("g", uint(Defaults.Nr2x.GlobalMidiChan), "Global MIDI channel ")
+	baseChan := flag.Uint("c", uint(Defaults.Nr2x.BaseMidiChan), "MIDI channel for voice/slot 0")
+	voice := flag.Uint("v", uint(Defaults.Nr2x.Voice), "The voice/slot to get")
 
-	if err := cctools.SendAllControllerRequest(uint(*port), uint8(*slot), uint8(*globalChan)); err != nil {
-		os.Exit(1)
-	}
+	ParseFlagsWithPositionalArg("output-file")
+	filename := flag.Args()[0]
+
+	ExitOnErr(nr2x.GetProgram(*inPort, *outPort, uint8(*globalChan), uint8(*baseChan), uint8(*voice), filename))
+}
+
+func runNr2xSet() {
+	inPort := flag.Uint("i", Defaults.Nr2x.InPort, "MIDI in port")
+	outPort := flag.Uint("o", Defaults.Nr2x.OutPort, "MIDI out port")
+	globalChan := flag.Uint("g", uint(Defaults.Nr2x.GlobalMidiChan), "Global MIDI channel ")
+	baseChan := flag.Uint("c", uint(Defaults.Nr2x.BaseMidiChan), "MIDI channel for voice/slot 0")
+	voice := flag.Uint("v", uint(Defaults.Nr2x.Voice), "The voice/slot to set")
+
+	ParseFlagsWithPositionalArg("input-file")
+	filename := flag.Args()[0]
+
+	ExitOnErr(nr2x.SetProgram(*inPort, *outPort, uint8(*globalChan), uint8(*baseChan), uint8(*voice), filename))
+}
+
+func runNd2Get() {
+	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
+	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
+	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
+
+	ParseFlagsWithPositionalArg("output-file")
+	filename := flag.Args()[0]
+
+	ExitOnErr(nd2.GetProgram(*inPort, *outPort, uint8(*baseChan), filename))
+}
+
+func runNd2Set() {
+	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
+	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
+	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
+
+	ParseFlagsWithPositionalArg("input-file")
+	filename := flag.Args()[0]
+
+	ExitOnErr(nd2.SetProgram(*inPort, *outPort, uint8(*baseChan), filename))
 }
 
 func runNd2Decoder() {
-	inPort := flag.Uint("i", 0, "The port to listen to")
-	outPort := flag.Uint("o", 0, "The port to send to")
-	outChan := flag.Uint("c", 8, "The channel for the first voice")
+	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
+	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
+	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
 	flag.Parse()
 
-	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*outChan))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
+	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*baseChan))
+	ExitOnErr(err)
 	CallOnShutdownSignal(nd2Decoder.Stop)
-	if err := nd2Decoder.Run(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	ExitOnErr(nd2Decoder.Run())
 }
 
-func runNd2DecoderTest() {
-	inPort := flag.Uint("i", 0, "The port to listen to")
-	outPort := flag.Uint("o", 0, "The port to send to")
-	outChan := flag.Uint("c", 8, "The channel for the first voice")
+func runNd2Test() {
+	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
+	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
+	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
 	flag.Parse()
 
-	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*outChan))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
+	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*baseChan))
+	ExitOnErr(err)
 	CallOnShutdownSignal(nd2Decoder.Stop)
-	if err := nd2Decoder.Test(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	ExitOnErr(nd2Decoder.Test())
 }
 
-func listPorts() {
-	if err := util.ListPorts(); err != nil {
-		fmt.Println(err)
+func ExitOnErr(err error) {
+	if err != nil {
+		fmt.Printf("%s exited with error: %s", os.Args[0], err)
 		os.Exit(1)
 	}
 }
@@ -147,4 +197,16 @@ func CallOnShutdownSignal(f func()) {
 		<-sigChan
 		f()
 	}()
+}
+
+func ParseFlagsWithPositionalArg(argName string) {
+	flag.Usage = func() {
+		fmt.Printf("Usage: cctools %s [OPTIONS] %s\n", os.Args[0], argName)
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+	if flag.NArg() != 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
 }

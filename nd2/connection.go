@@ -2,6 +2,7 @@ package nd2
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	_ "embed"
@@ -38,23 +39,34 @@ var Nd2LsbMsbControllers = [][]uint8{TonePitchController, EchoBbmController}
 
 // SysEx program msg format
 const ProgramBytes = 210
-const HeaderBytes = 12
-const VoiceBytes = 32
+const ProgramHeaderBytes = 12
+const ProgramVoiceBytes = 32
 const ChecksumBytes = 4
 
+var HandshakeRequest = []byte{51, 127, 127, 7, 0, 6, 0, 127}
+var HandshakeResponse = []byte{51, 127, 25, 7, 0, 7, 0, 0, 75, 0, 0, 55, 64, 24}
+
 //go:embed data/controller-bit-ranges.csv
-var ControllerBitRanges []byte
+var ControllerBitRangesData []byte
+var ControllerBitRanges map[uint8]*BitRange
 
 //go:embed data/controller-value-sysex-map.csv
-var ControllerValueSysexMap []byte
+var ControllerValueSysexMapData []byte
+var ControllerValueSysexMap map[uint8]map[uint8]uint8
 
-const ConnectionSleepTime = time.Millisecond * 50
+const ConnectionSleepTime = time.Millisecond * 10
+const ConnectionMaxWaitTime = time.Second * 5
 
 var MsbMaskMap = map[int]uint8{
 	1: 0b1111111, 2: 0b111111, 3: 0b11111, 4: 0b1111, 5: 0b111, 6: 0b11, 7: 0b1,
 }
 
-func LoadSysexControllerValueMap() (map[uint8]map[uint8]uint8, error) {
+func init() {
+	LoadControllerBitRanges()
+	LoadSysexControllerValueMap()
+}
+
+func LoadSysexControllerValueMap() {
 	type row struct {
 		Controller      uint8 `csv:"controller"`
 		ControllerValue uint8 `csv:"controller_value"`
@@ -62,23 +74,22 @@ func LoadSysexControllerValueMap() (map[uint8]map[uint8]uint8, error) {
 	}
 
 	rows := []*row{}
-	if err := gocsv.UnmarshalBytes(ControllerValueSysexMap, &rows); err != nil {
-		return nil, err
+	if err := gocsv.UnmarshalBytes(ControllerValueSysexMapData, &rows); err != nil {
+		panic(err)
 	}
 
-	scvMap := map[uint8]map[uint8]uint8{}
+	ControllerValueSysexMap = map[uint8]map[uint8]uint8{}
 	for _, row := range rows {
-		bts, ok := scvMap[row.Controller]
+		bts, ok := ControllerValueSysexMap[row.Controller]
 		if !ok {
 			bts = map[uint8]uint8{}
-			scvMap[row.Controller] = bts
+			ControllerValueSysexMap[row.Controller] = bts
 		}
 		current, ok := bts[row.SysexValue]
 		if !ok || current > row.ControllerValue { // always use lowest value
 			bts[row.SysexValue] = row.ControllerValue
 		}
 	}
-	return scvMap, nil
 }
 
 type BitRange struct {
@@ -87,17 +98,16 @@ type BitRange struct {
 	Last       int   `csv:"last"`
 }
 
-func LoadControllerBitRanges() (map[uint8]*BitRange, error) {
+func LoadControllerBitRanges() {
 	rows := []*BitRange{}
-	if err := gocsv.UnmarshalBytes(ControllerBitRanges, &rows); err != nil {
-		return nil, err
+	if err := gocsv.UnmarshalBytes(ControllerBitRangesData, &rows); err != nil {
+		panic(err)
 	}
 
-	controllerBitRanges := map[uint8]*BitRange{}
+	ControllerBitRanges = map[uint8]*BitRange{}
 	for _, bitRange := range rows {
-		controllerBitRanges[bitRange.Controller] = bitRange
+		ControllerBitRanges[bitRange.Controller] = bitRange
 	}
-	return controllerBitRanges, nil
 }
 
 type Nd2Connection struct {
@@ -105,11 +115,13 @@ type Nd2Connection struct {
 	writer       *writer.Writer
 	closeFunc    func() error
 	responseChan chan sysex.SysEx
+	shutdownChan chan interface{}
 }
 
 func NewNd2Connection(inPort, outPort uint) (nd2c *Nd2Connection, errVal error) {
 	conn := &Nd2Connection{
 		responseChan: make(chan sysex.SysEx, 1),
+		shutdownChan: make(chan interface{}, 1),
 	}
 	in, out, closeFunc, err := util.GetMidiPorts(inPort, outPort)
 	if err != nil {
@@ -131,19 +143,46 @@ func NewNd2Connection(inPort, outPort uint) (nd2c *Nd2Connection, errVal error) 
 		}),
 	)
 	conn.reader.ListenTo(in)
-	fmt.Printf("Listening to port %d (%s)\n", in.Number(), in.String())
 
 	conn.writer = writer.New(out)
+
+	if err := conn.Handshake(); err != nil {
+		return nil, errors.Wrapf(err, "Cannot connect to ND2 on port %d (%s): handshake failed", out.Number(), out.String())
+	}
+
+	fmt.Println("Connected to ND2")
+	fmt.Printf("MIDI in port:  %d (%s)\n", in.Number(), in.String())
+	fmt.Printf("MIDI out port: %d (%s)\n", in.Number(), in.String())
 
 	return conn, nil
 }
 
-func (conn *Nd2Connection) SendProgramRequest() error {
-	sysEx := []byte{51, 127, 127, 8, 3, 5, 0, 19}
-	if err := writer.SysEx(conn.writer, sysEx); err != nil {
-		return errors.Wrap(err, "error sending SysEx message")
+func (conn *Nd2Connection) GetProgram() (Nd2ProgramSysex, error) {
+	sysExData := []byte{51, 127, 127, 8, 3, 5, 0, 19}
+	if err := writer.SysEx(conn.writer, sysExData); err != nil {
+		return nil, errors.Wrap(err, "error sending SysEx message")
 	}
 	time.Sleep(ConnectionSleepTime)
+	sysExReply, err := conn.waitForSysExMsg()
+	if err != nil {
+		return nil, err
+	}
+	return Nd2ProgramSysex(sysExReply), nil
+}
+
+func (conn *Nd2Connection) Handshake() error {
+	if err := writer.SysEx(conn.writer, HandshakeRequest); err != nil {
+		return errors.Wrap(err, "error sending SysEx message")
+	}
+
+	sysExReply, err := conn.waitForSysExMsg()
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(sysExReply.Data(), HandshakeResponse) {
+		return errors.Errorf("unexpected handshake reply (1): %v", sysExReply.Data())
+	}
+
 	return nil
 }
 
@@ -156,27 +195,41 @@ func (conn *Nd2Connection) SendControlChange(channel, controller, value uint8) e
 	return nil
 }
 
+func (conn *Nd2Connection) waitForSysExMsg() (sysex.SysEx, error) {
+	select {
+	case <-conn.shutdownChan:
+		return nil, errors.New("cancelled")
+	case <-time.After(ConnectionMaxWaitTime):
+		return nil, errors.New("program request timed out")
+	case sysExMsg := <-conn.responseChan:
+		return sysExMsg, nil
+	}
+}
+
 func (conn *Nd2Connection) Close() error {
+	conn.shutdownChan <- nil
 	return conn.closeFunc()
 }
 
 type Nd2ProgramSysex sysex.SysEx
 
-func (prog Nd2ProgramSysex) GetVoiceBytes(voice int) []byte {
-	return prog[HeaderBytes+(voice*VoiceBytes) : HeaderBytes+((voice+1)*VoiceBytes)+1]
+func (prog Nd2ProgramSysex) GetVoiceBytes(voice uint8) []byte {
+	return prog[ProgramHeaderBytes+(voice*ProgramVoiceBytes) : ProgramHeaderBytes+((voice+1)*ProgramVoiceBytes)+1]
 }
 
-func (prog Nd2ProgramSysex) GetSysExValue(first, last int) uint8 {
-	firstByte := first / 8
-	firstBit := first % 8
-	lastByte := last / 8
-	lastBit := last % 8
+func (prog Nd2ProgramSysex) GetSysExValue(voice uint8, bitRange *BitRange) uint8 {
+	voiceBytes := prog.GetVoiceBytes(voice)
+
+	firstByte := bitRange.First / 8
+	firstBit := bitRange.First % 8
+	lastByte := bitRange.Last / 8
+	lastBit := bitRange.Last % 8
 
 	if firstByte == lastByte {
-		return prog[firstByte] & MsbMaskMap[firstBit] >> (7 - lastBit)
+		return voiceBytes[firstByte] & MsbMaskMap[firstBit] >> (7 - lastBit)
 	} else if firstByte+1 == lastByte {
-		valMsb := prog[lastByte] >> (7 - byte(lastBit))
-		valLsb := prog[firstByte] & MsbMaskMap[firstBit] << byte(lastBit)
+		valMsb := voiceBytes[lastByte] >> (7 - byte(lastBit))
+		valLsb := voiceBytes[firstByte] & MsbMaskMap[firstBit] << byte(lastBit)
 		return valLsb + valMsb
 	} else {
 		panic("non-contiguous bytes")
