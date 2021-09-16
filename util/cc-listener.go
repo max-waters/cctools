@@ -108,9 +108,9 @@ func (cclv *ControlChangeListenerView) print(clearScreen bool) {
 	var i uint8
 	for i = 0; i < 128; i++ {
 		if v, ok := cclv.controllerValueMap[i]; ok {
-			sb.WriteString(fmt.Sprintf("%s ", formatControllerValuePair(i, &v)))
+			sb.WriteString(fmt.Sprintf("%s ", FormatControllerValuePair(i, &v)))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s ", formatControllerValuePair(i, nil)))
+			sb.WriteString(fmt.Sprintf("%s ", FormatControllerValuePair(i, nil)))
 		}
 		if (i+1)%8 == 0 {
 			sb.WriteString("\n")
@@ -184,7 +184,7 @@ func (cclv *ControlChangeListenerView) saveFile() {
 	}
 }
 
-func formatControllerValuePair(controller uint8, value *uint8) string {
+func FormatControllerValuePair(controller uint8, value *uint8) string {
 	if value != nil {
 		return fmt.Sprintf("%03d:%03d", controller, *value)
 	}
