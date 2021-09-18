@@ -32,7 +32,10 @@ func GetProgram(inPort, outPort uint, baseChannel uint8, programName string) err
 		}
 	}
 
-	filename := util.FormatFileName(programName)
+	filename, err := util.FormatFileName(programName)
+	if err != nil {
+		return err
+	}
 	if err := util.SaveVoiceControllerValues(filename, voiceControllerValues); err != nil {
 		return err
 	}

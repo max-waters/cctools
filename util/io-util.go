@@ -2,10 +2,13 @@ package util
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gocarina/gocsv"
 	"github.com/pkg/errors"
@@ -68,11 +71,54 @@ func MarshalCsv(filename string, data interface{}) error {
 	return gocsv.Marshal(data, f)
 }
 
-func FormatFileName(programName string) string {
-	if extension := filepath.Ext(programName); len(extension) > 0 { // return eg file-timestamp.extension
-		name := strings.TrimSuffix(programName, extension)
-		return fmt.Sprintf("%s-%s%s", name, time.Now().Format(TimestampFormat), extension)
+func FormatFileName(filename string) (string, error) {
+	extension := ".csv"
+	if ext := filepath.Ext(filename); len(ext) > 0 { // file has an extension
+		extension = ext
 	}
-	// return file-timestamp.csv
-	return fmt.Sprintf("%s-%s.csv", programName, time.Now().Format(TimestampFormat))
+	dir := filepath.Dir(filename)
+	filebase := strings.TrimSuffix(filepath.Base(filename), extension)
+
+	n, err := GetNextFileNumber(dir, filebase, extension[1:])
+	if err != nil {
+		return "", errors.New("error formatting filename")
+	}
+	return fmt.Sprintf("%s/%s-%03d%s", dir, filebase, n, extension), nil
+}
+
+func GetNextFileNumber(dir, filename, extension string) (int, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	regex, err := GetNumberedFileRegex(filename, extension)
+	if err != nil {
+		return -1, err
+	}
+	highest := -1
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		matches := regex.FindStringSubmatch(file.Name())
+		if len(matches) == 0 {
+			continue
+		}
+
+		n, err := strconv.Atoi(matches[1])
+		if err != nil {
+			return -1, err
+		}
+		if n > highest {
+			highest = n
+		}
+	}
+	return highest + 1, nil
+}
+
+func GetNumberedFileRegex(filename, extension string) (*regexp.Regexp, error) {
+	sanitisedFileName := regexp.QuoteMeta(filename)
+	sanitisedExt := regexp.QuoteMeta(extension)
+	return regexp.Compile(fmt.Sprintf("^%s-([\\d]+).%s$", sanitisedFileName, sanitisedExt))
 }

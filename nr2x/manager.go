@@ -116,7 +116,10 @@ func GetProgram(inPort, outPort uint, globalChannel, baseChannel, voice uint8, f
 		return err
 	}
 
-	filename = util.FormatFileName(filename)
+	filename, err = util.FormatFileName(filename)
+	if err != nil {
+		return err
+	}
 	if err := util.SaveControllerValues(filename, controllerValues); err != nil {
 		return err
 	}

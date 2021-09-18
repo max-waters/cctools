@@ -30,7 +30,7 @@ type DefaultFlags struct {
 	} `yaml:"nd2"`
 }
 
-//go:embed util/data/defaults.yaml
+//go:embed defaults.yaml
 var DefaultsFileBytes []byte
 var Defaults *DefaultFlags
 
