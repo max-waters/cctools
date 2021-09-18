@@ -6,7 +6,7 @@ import (
 	"mvw.org/cctools/util"
 )
 
-func GetProgram(inPort, outPort uint, baseChannel uint8, programName string) error {
+func GetProgram(inPort, outPort uint, baseChannel uint8, filename string) error {
 	conn, err := NewNd2Connection(inPort, outPort)
 	if err != nil {
 		return err
@@ -32,11 +32,8 @@ func GetProgram(inPort, outPort uint, baseChannel uint8, programName string) err
 		}
 	}
 
-	filename, err := util.FormatFileName(programName)
+	filename, err = util.SaveVoiceControllerValues(filename, voiceControllerValues)
 	if err != nil {
-		return err
-	}
-	if err := util.SaveVoiceControllerValues(filename, voiceControllerValues); err != nil {
 		return err
 	}
 	fmt.Printf("Saved ND2 program to %s\n", filename)
@@ -60,6 +57,6 @@ func SetProgram(inPort, outPort uint, baseChannel uint8, filename string) error 
 			return err
 		}
 	}
-	fmt.Printf("Sent program %s to ND2", filename)
+	fmt.Printf("Sent program %s to ND2\n", filename)
 	return nil
 }

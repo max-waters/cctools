@@ -116,11 +116,8 @@ func GetProgram(inPort, outPort uint, globalChannel, baseChannel, voice uint8, f
 		return err
 	}
 
-	filename, err = util.FormatFileName(filename)
+	filename, err = util.SaveControllerValues(filename, controllerValues)
 	if err != nil {
-		return err
-	}
-	if err := util.SaveControllerValues(filename, controllerValues); err != nil {
 		return err
 	}
 	fmt.Printf("Saved NR2X program to %s\n", filename)
@@ -143,6 +140,7 @@ func SetProgram(inPort, outPort uint, globalChannel, baseChannel, voice uint8, f
 		if err := conn.SendControlChange(voice, controllerValue.Controller, controllerValue.Value); err != nil {
 			return err
 		}
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	fmt.Printf("Sent program %s to NR2X\n", filename)

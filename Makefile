@@ -2,7 +2,7 @@ NAME=cctools
 COMPILE_DIR=./bin
 INSTALL_DIR=/usr/local/bin
 
-.PHONY: help test clean cctools install
+.PHONY: help test clean build install uninstall
 .DEFAULT_GOAL := help
 
 help: ## Print this help message

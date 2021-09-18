@@ -179,8 +179,9 @@ func (cclv *ControlChangeListenerView) saveFile() {
 			Controller: controller, Value: value,
 		})
 	}
-	if err := SaveControllerValues(cclv.outputFile, controllerValues); err != nil {
-		cclv.log("Error saving controller values to file: %s", err)
+	filename, err := SaveControllerValues(cclv.outputFile, controllerValues)
+	if err != nil {
+		cclv.log("Error saving controller values to file: '%s'", filename)
 	}
 }
 

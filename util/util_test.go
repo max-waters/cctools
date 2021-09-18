@@ -13,17 +13,17 @@ func TestGetNumberedFileRegex(t *testing.T) {
 		ExpectedNum                   int
 	}
 	testCases := []*testCase{
-		{FileBase: "name", Extension: "csv", Filename: "name-100.csv", ExpectedNum: 100},
+		{FileBase: "name", Extension: ".csv", Filename: "name-100.csv", ExpectedNum: 100},
 		{FileBase: "name", Extension: "csv", Filename: "name-1.csv", ExpectedNum: 1},
-		{FileBase: "name", Extension: "csv", Filename: "name-0010.csv", ExpectedNum: 10},
+		{FileBase: "name", Extension: ".csv", Filename: "name-0010.csv", ExpectedNum: 10},
 		{FileBase: "name", Extension: "csv", Filename: "name.csv", ExpectedNum: -1},
-		{FileBase: "name", Extension: "csv", Filename: "blah-100.csv", ExpectedNum: -1},
+		{FileBase: "name", Extension: ".csv", Filename: "blah-100.csv", ExpectedNum: -1},
 		{FileBase: "name", Extension: "csv", Filename: "name-100.csv2", ExpectedNum: -1},
-		{FileBase: "name", Extension: "csv", Filename: "prefixname-100.csv", ExpectedNum: -1},
-		{FileBase: "name", Extension: "csv", Filename: "name-100-11.csv", ExpectedNum: -1},
-		{FileBase: "name++", Extension: "csv", Filename: "name++-100.csv", ExpectedNum: 100},
-		{FileBase: "name-(something)", Extension: "csv", Filename: "name-(something)-100.csv", ExpectedNum: 100},
-		{FileBase: "$[name]-(***)", Extension: "c^v", Filename: "$[name]-(***)-100.c^v", ExpectedNum: 100},
+		{FileBase: "name", Extension: ".csv", Filename: "prefixname-100.csv", ExpectedNum: -1},
+		{FileBase: "name", Extension: ".csv", Filename: "name-100-11.csv", ExpectedNum: -1},
+		{FileBase: "name++", Extension: ".csv", Filename: "name++-100.csv", ExpectedNum: 100},
+		{FileBase: "name-(something)", Extension: ".csv", Filename: "name-(something)-100.csv", ExpectedNum: 100},
+		{FileBase: "$[name]-(***)", Extension: ".c^v", Filename: "$[name]-(***)-100.c^v", ExpectedNum: 100},
 	}
 
 	for _, testCase := range testCases {

@@ -2,8 +2,8 @@ package util
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,8 +13,6 @@ import (
 	"github.com/gocarina/gocsv"
 	"github.com/pkg/errors"
 )
-
-const TimestampFormat = "2006-01-02T15:04:05"
 
 func LoadControllerValues(filename string) ([]*ControllerValue, error) {
 	rows := []*ControllerValue{}
@@ -35,67 +33,75 @@ func LoadVoiceControllerValues(filename string) ([]*VoiceControllerValue, error)
 func UnmarshalCsv(filename string, dest interface{}) error {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil
+		return err
 	}
 	defer f.Close()
 	return gocsv.Unmarshal(f, dest)
 }
 
-func SaveVoiceControllerValues(filename string, data []*VoiceControllerValue) error {
-	if err := MarshalCsv(filename, &data); err != nil {
-		return errors.Wrap(err, "cannot save controller values")
+func SaveVoiceControllerValues(filename string, data []*VoiceControllerValue) (string, error) {
+	filename, err := MarshalCsv(filename, &data)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot save controller values")
 	}
-	return nil
+	return filename, nil
 }
 
-func SaveControllerValues(filename string, data []*ControllerValue) error {
-	if err := MarshalCsv(filename, &data); err != nil {
-		return errors.Wrap(err, "cannot controller values")
+func SaveControllerValues(filename string, data []*ControllerValue) (string, error) {
+	filename, err := MarshalCsv(filename, &data)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot save controller values")
 	}
-	return nil
+	return filename, nil
 }
 
-func MarshalCsv(filename string, data interface{}) error {
+func MarshalCsv(filename string, data interface{}) (string, error) {
+	filename = FormatFileName(filename)
+	if err := BackupIfExists(filename); err != nil {
+		return "", errors.Wrap(err, "cannot back up file")
+	}
+
 	// create parent directories
 	if err := os.MkdirAll(filepath.Dir(filename), os.ModePerm); err != nil {
-		return err
+		return "", err
 	}
+
 	// create file
 	f, err := os.Create(filename)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer f.Close()
 
 	// write data
-	return gocsv.Marshal(data, f)
+	return filename, gocsv.Marshal(data, f)
 }
 
-func FormatFileName(filename string) (string, error) {
-	extension := ".csv"
-	if ext := filepath.Ext(filename); len(ext) > 0 { // file has an extension
-		extension = ext
+func BackupIfExists(filename string) error {
+	// if it is a new file, return
+	if _, err := os.Stat(filename); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		} else {
+			return errors.Wrapf(err, "cannot check if file '%s' exists", filename)
+		}
 	}
+
+	// find backup file name
 	dir := filepath.Dir(filename)
-	filebase := strings.TrimSuffix(filepath.Base(filename), extension)
+	extension := filepath.Ext(filename)
+	fileBase := strings.TrimSuffix(filepath.Base(filename), extension)
 
-	n, err := GetNextFileNumber(dir, filebase, extension[1:])
+	regex, err := GetNumberedFileRegex(fileBase, extension)
 	if err != nil {
-		return "", errors.New("error formatting filename")
+		return err
 	}
-	return fmt.Sprintf("%s/%s-%03d%s", dir, filebase, n, extension), nil
-}
 
-func GetNextFileNumber(dir, filename, extension string) (int, error) {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrapf(err, "cannot read contents of directory '%s'", dir)
 	}
 
-	regex, err := GetNumberedFileRegex(filename, extension)
-	if err != nil {
-		return -1, err
-	}
 	highest := -1
 	for _, file := range files {
 		if file.IsDir() {
@@ -108,17 +114,46 @@ func GetNextFileNumber(dir, filename, extension string) (int, error) {
 
 		n, err := strconv.Atoi(matches[1])
 		if err != nil {
-			return -1, err
+			return err
 		}
 		if n > highest {
 			highest = n
 		}
 	}
-	return highest + 1, nil
+	backupFileName := fmt.Sprintf("%s/%s-%03d%s", dir, fileBase, highest+1, extension)
+
+	// copy current file to backup
+	source, err := os.Open(filename)
+	if err != nil {
+		return errors.Wrapf(err, "cannot open file '%s'", filename)
+	}
+	defer source.Close()
+
+	destination, err := os.Create(backupFileName)
+	if err != nil {
+		return errors.Wrapf(err, "cannot open file '%s'", backupFileName)
+	}
+	defer destination.Close()
+
+	if _, err := io.Copy(destination, source); err != nil {
+		return errors.Wrap(err, "cannot copy to backup file")
+	}
+
+	return nil
+}
+
+func FormatFileName(filename string) string {
+	if ext := filepath.Ext(filename); len(ext) > 0 { // file has an extension, keep it
+		return filename
+	}
+	return filename + ".csv"
 }
 
 func GetNumberedFileRegex(filename, extension string) (*regexp.Regexp, error) {
+	if len(extension) > 0 && extension[0] != '.' {
+		extension = "." + extension
+	}
 	sanitisedFileName := regexp.QuoteMeta(filename)
 	sanitisedExt := regexp.QuoteMeta(extension)
-	return regexp.Compile(fmt.Sprintf("^%s-([\\d]+).%s$", sanitisedFileName, sanitisedExt))
+	return regexp.Compile(fmt.Sprintf("^%s-([\\d]+)%s$", sanitisedFileName, sanitisedExt))
 }
