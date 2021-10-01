@@ -6,6 +6,7 @@ import (
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
+	"gitlab.com/gomidi/midi/writer"
 	driver "gitlab.com/gomidi/rtmididrv"
 )
 
@@ -224,4 +225,50 @@ func openMidiOutPort(drv *driver.Driver, outPortNum uint) (outPort midi.Out, err
 		return nil, err
 	}
 	return out, nil
+}
+
+type MidiReaderWriter struct {
+	Reader    *reader.Reader
+	Writer    *writer.Writer
+	In        midi.In
+	Out       midi.Out
+	closeFunc func() error
+}
+
+func NewMidiReaderWriter(inPort, outPort uint, msgReadFunction func(pos *reader.Position, msg midi.Message)) (readerWriter *MidiReaderWriter, errVal error) {
+	rw := &MidiReaderWriter{}
+	in, out, closeFunc, err := GetMidiPorts(inPort, outPort)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if errVal != nil {
+			closeFunc()
+		}
+	}()
+	rw.closeFunc = closeFunc
+	rw.In = in
+	rw.Out = out
+
+	rw.Reader = reader.New(
+		reader.NoLogger(),
+		reader.Each(msgReadFunction),
+	)
+	rw.Reader.ListenTo(in)
+	rw.Writer = writer.New(out)
+
+	return rw, nil
+}
+
+func (rw *MidiReaderWriter) Close() error {
+	return rw.closeFunc()
+}
+
+func (rw *MidiReaderWriter) ControlChange(channel, controller uint8, value uint8) error {
+	rw.Writer.SetChannel(channel)
+	return writer.ControlChange(rw.Writer, controller, value)
+}
+
+func (rw *MidiReaderWriter) SysEx(data []byte) error {
+	return writer.SysEx(rw.Writer, data)
 }

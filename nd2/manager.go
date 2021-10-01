@@ -18,24 +18,16 @@ func GetProgram(inPort, outPort uint, baseChannel uint8, filename string) error 
 		return err
 	}
 
-	voiceControllerValues := []*util.VoiceControllerValue{}
-	var voice uint8
-	for voice = 0; voice < 6; voice++ {
-		for _, controller := range Nd2Controllers {
-			sysExValue := program.GetSysExValue(voice, ControllerBitRanges[controller])
-			controllerValue := ControllerValueSysexMap[controller][sysExValue]
-			voiceControllerValues = append(voiceControllerValues, &util.VoiceControllerValue{
-				Voice:      voice,
-				Controller: controller,
-				Value:      controllerValue,
-			})
-		}
+	voiceControllerValues, err := program.GetVoiceControllerValues()
+	if err != nil {
+		return err
 	}
 
 	filename, err = util.SaveVoiceControllerValues(filename, voiceControllerValues)
 	if err != nil {
 		return err
 	}
+
 	fmt.Printf("Saved ND2 program to %s\n", filename)
 	return nil
 }

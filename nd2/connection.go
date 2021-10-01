@@ -12,7 +12,6 @@ import (
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
-	"gitlab.com/gomidi/midi/writer"
 	"mvw.org/cctools/util"
 )
 
@@ -111,8 +110,7 @@ func LoadControllerBitRanges() {
 }
 
 type Nd2Connection struct {
-	reader       *reader.Reader
-	writer       *writer.Writer
+	readerWriter *util.MidiReaderWriter
 	closeFunc    func() error
 	responseChan chan sysex.SysEx
 	shutdownChan chan interface{}
@@ -123,43 +121,33 @@ func NewNd2Connection(inPort, outPort uint) (nd2c *Nd2Connection, errVal error) 
 		responseChan: make(chan sysex.SysEx, 1),
 		shutdownChan: make(chan interface{}, 1),
 	}
-	in, out, closeFunc, err := util.GetMidiPorts(inPort, outPort)
+
+	readerWriter, err := util.NewMidiReaderWriter(inPort, outPort, func(pos *reader.Position, msg midi.Message) {
+		if sysExMsg, ok := msg.(sysex.SysEx); ok {
+			conn.responseChan <- sysExMsg
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if errVal != nil {
-			closeFunc()
-		}
-	}()
-	conn.closeFunc = closeFunc
 
-	conn.reader = reader.New(
-		reader.NoLogger(),
-		reader.Each(func(pos *reader.Position, msg midi.Message) {
-			if sysExMsg, ok := msg.(sysex.SysEx); ok {
-				conn.responseChan <- sysExMsg
-			}
-		}),
-	)
-	conn.reader.ListenTo(in)
-
-	conn.writer = writer.New(out)
+	conn.readerWriter = readerWriter
 
 	if err := conn.Handshake(); err != nil {
-		return nil, errors.Wrapf(err, "Cannot connect to ND2 on port %d (%s): handshake failed", out.Number(), out.String())
+		return nil, errors.Wrapf(err, "Cannot connect to ND2 on port %d (%s): handshake failed",
+			conn.readerWriter.Out.Number(), conn.readerWriter.Out.String())
 	}
 
 	fmt.Println("Connected to ND2")
-	fmt.Printf("MIDI in port:  %d (%s)\n", in.Number(), in.String())
-	fmt.Printf("MIDI out port: %d (%s)\n", in.Number(), in.String())
+	fmt.Printf("MIDI in port:  %d (%s)\n", conn.readerWriter.In.Number(), conn.readerWriter.In.String())
+	fmt.Printf("MIDI out port: %d (%s)\n", conn.readerWriter.Out.Number(), conn.readerWriter.Out.String())
 
 	return conn, nil
 }
 
 func (conn *Nd2Connection) GetProgram() (Nd2ProgramSysex, error) {
 	sysExData := []byte{51, 127, 127, 8, 3, 5, 0, 19}
-	if err := writer.SysEx(conn.writer, sysExData); err != nil {
+	if err := conn.readerWriter.SysEx(sysExData); err != nil {
 		return nil, errors.Wrap(err, "error sending SysEx message")
 	}
 	time.Sleep(ConnectionSleepTime)
@@ -171,7 +159,7 @@ func (conn *Nd2Connection) GetProgram() (Nd2ProgramSysex, error) {
 }
 
 func (conn *Nd2Connection) Handshake() error {
-	if err := writer.SysEx(conn.writer, HandshakeRequest); err != nil {
+	if err := conn.readerWriter.SysEx(HandshakeRequest); err != nil {
 		return errors.Wrap(err, "error sending SysEx message")
 	}
 
@@ -187,8 +175,7 @@ func (conn *Nd2Connection) Handshake() error {
 }
 
 func (conn *Nd2Connection) SendControlChange(channel, controller, value uint8) error {
-	conn.writer.SetChannel(channel)
-	if err := writer.ControlChange(conn.writer, controller, value); err != nil {
+	if err := conn.readerWriter.ControlChange(channel, controller, value); err != nil {
 		return errors.Wrap(err, "error sending control change message")
 	}
 	time.Sleep(ConnectionSleepTime)
@@ -234,4 +221,22 @@ func (prog Nd2ProgramSysex) GetSysExValue(voice uint8, bitRange *BitRange) uint8
 	} else {
 		panic("non-contiguous bytes")
 	}
+}
+
+func (prog Nd2ProgramSysex) GetVoiceControllerValues() ([]*util.VoiceControllerValue, error) {
+	voiceControllerValues := []*util.VoiceControllerValue{}
+	var voice uint8
+	for voice = 0; voice < 6; voice++ {
+		for _, controller := range Nd2Controllers {
+			sysExValue := prog.GetSysExValue(voice, ControllerBitRanges[controller])
+			controllerValue := ControllerValueSysexMap[controller][sysExValue]
+			voiceControllerValues = append(voiceControllerValues, &util.VoiceControllerValue{
+				Voice:      voice,
+				Controller: controller,
+				Value:      controllerValue,
+			})
+		}
+	}
+
+	return voiceControllerValues, nil
 }
