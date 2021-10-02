@@ -8,3 +8,8 @@ nd2:
   in_port: 1
   out_port: 1
   base_midi_channel: 8
+  global_midi_channel: 0
+nmg2:
+  in_port: 2
+  out_port: 2
+  base_midi_channel: 0

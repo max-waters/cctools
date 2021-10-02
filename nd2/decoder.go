@@ -12,19 +12,17 @@ import (
 
 type Nd2Decoder struct {
 	nd2Conn                 *Nd2Connection
-	baseChannel             uint8
 	bitRanges               map[uint8]*BitRange
 	sysexControllerValueMap map[uint8]map[uint8]uint8
 }
 
-func NewNd2Decoder(inPort, outPort uint, baseChan uint8) (*Nd2Decoder, error) {
-	nd2Conn, err := NewNd2Connection(inPort, outPort)
+func NewNd2Decoder(conf *Nd2ConnectionConfig) (*Nd2Decoder, error) {
+	nd2Conn, err := NewNd2Connection(conf)
 	if err != nil {
 		return nil, err
 	}
 	return &Nd2Decoder{
-		nd2Conn:     nd2Conn,
-		baseChannel: baseChan,
+		nd2Conn: nd2Conn,
 	}, nil
 }
 
@@ -52,7 +50,7 @@ func (decoder *Nd2Decoder) findSimpleControllerBitRanges() error {
 	var c uint8
 	for _, c = range SimpleNd2Controllers {
 		first, last, err := decoder.findBitRanges(128, func(v uint8) error {
-			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, c, v)
+			return decoder.nd2Conn.SendControlChange(0, c, v)
 		})
 		if err != nil {
 			return errors.Wrapf(err, "cannot get bit indexes for controller %d", c)
@@ -72,11 +70,11 @@ func (decoder *Nd2Decoder) findLsbMsbControllerBitRanges() error {
 		// LSB
 		lsbFirst, lsbLast, err := decoder.findBitRanges(128, func(v uint8) error {
 			// send LSB of v
-			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[0], v); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(0, lsbMsb[0], v); err != nil {
 				return err
 			}
 			// send MSB of zero
-			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[1], 0)
+			return decoder.nd2Conn.SendControlChange(0, lsbMsb[1], 0)
 		})
 		if err != nil {
 			return err
@@ -91,11 +89,11 @@ func (decoder *Nd2Decoder) findLsbMsbControllerBitRanges() error {
 		}
 		msbFirst, msbLast, err := decoder.findBitRanges(max, func(v uint8) error {
 			// send LSB of zero
-			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[0], 0); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(0, lsbMsb[0], 0); err != nil {
 				return err
 			}
 			// send MSB of v
-			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[1], v)
+			return decoder.nd2Conn.SendControlChange(0, lsbMsb[1], v)
 		})
 		if err != nil {
 			return err
@@ -108,7 +106,7 @@ func (decoder *Nd2Decoder) findLsbMsbControllerBitRanges() error {
 
 func (decoder *Nd2Decoder) findBitRanges(max uint8, setFunc func(uint8) error) (int, int, error) {
 	// get zero
-	if err := decoder.resetCcs(decoder.baseChannel); err != nil {
+	if err := decoder.resetCcs(0); err != nil {
 		return -1, -1, errors.Wrap(err, "cannot reset control change data")
 	}
 	zeroProgram, err := decoder.nd2Conn.GetProgram()
@@ -189,16 +187,16 @@ func getDifferences(bts1, bts2 []byte) (int, int) {
 func (decoder *Nd2Decoder) resetCcs(channel uint8) error {
 	var c uint8
 	for _, c = range SimpleNd2Controllers {
-		if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, c, 0); err != nil {
+		if err := decoder.nd2Conn.SendControlChange(0, c, 0); err != nil {
 			return err
 		}
 	}
 	for _, lsbMsb := range Nd2LsbMsbControllers {
 		// LSB then MSB
-		if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[0], 0); err != nil {
+		if err := decoder.nd2Conn.SendControlChange(0, lsbMsb[0], 0); err != nil {
 			return err
 		}
-		if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, lsbMsb[1], 0); err != nil {
+		if err := decoder.nd2Conn.SendControlChange(0, lsbMsb[1], 0); err != nil {
 			return err
 		}
 	}
@@ -220,7 +218,7 @@ func (decoder *Nd2Decoder) FindControllerSysExValues() error {
 func (decoder *Nd2Decoder) findSimpleControllerSysExValues() error {
 	for _, c := range SimpleNd2Controllers {
 		if err := decoder.findControllerSysExValues(c, func(v uint8) error {
-			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, c, v)
+			return decoder.nd2Conn.SendControlChange(0, c, v)
 		}); err != nil {
 			return err
 		}
@@ -232,20 +230,20 @@ func (decoder *Nd2Decoder) findLsbMsbControllerSysExValues() error {
 	for _, msbLsb := range Nd2LsbMsbControllers {
 		// LSB
 		if err := decoder.findControllerSysExValues(msbLsb[0], func(v uint8) error {
-			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[0], v); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(0, msbLsb[0], v); err != nil {
 				return err
 			}
-			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[1], 0)
+			return decoder.nd2Conn.SendControlChange(0, msbLsb[1], 0)
 		}); err != nil {
 			return err
 		}
 
 		// MSB
 		if err := decoder.findControllerSysExValues(msbLsb[1], func(v uint8) error {
-			if err := decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[0], 0); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(0, msbLsb[0], 0); err != nil {
 				return err
 			}
-			return decoder.nd2Conn.SendControlChange(decoder.baseChannel, msbLsb[1], v)
+			return decoder.nd2Conn.SendControlChange(0, msbLsb[1], v)
 		}); err != nil {
 			return err
 		}
@@ -255,7 +253,7 @@ func (decoder *Nd2Decoder) findLsbMsbControllerSysExValues() error {
 }
 
 func (decoder *Nd2Decoder) findControllerSysExValues(c uint8, setFunc func(v uint8) error) error {
-	if err := decoder.resetCcs(decoder.baseChannel); err != nil {
+	if err := decoder.resetCcs(0); err != nil {
 		return errors.Wrap(err, "cannot reset controller values")
 	}
 	var v uint8
@@ -269,7 +267,7 @@ func (decoder *Nd2Decoder) findControllerSysExValues(c uint8, setFunc func(v uin
 			return err
 		}
 
-		sysExVal := program.GetSysExValue(decoder.baseChannel, decoder.bitRanges[c])
+		sysExVal := program.GetSysExValue(0, decoder.bitRanges[c])
 		fmt.Printf("%d,%d,%d\n", c, v, sysExVal)
 	}
 	return nil
@@ -318,7 +316,7 @@ func (decoder *Nd2Decoder) sendAndParseControlChanges(controllerValues map[uint8
 	// send controller values
 	for v, values := range controllerValues {
 		for i, c := range Nd2Controllers {
-			if err := decoder.nd2Conn.SendControlChange(v+decoder.baseChannel, c, values[i]); err != nil {
+			if err := decoder.nd2Conn.SendControlChange(v, c, values[i]); err != nil {
 				return nil, err
 			}
 		}

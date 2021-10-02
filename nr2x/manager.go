@@ -8,7 +8,6 @@ import (
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/reader"
-	"gitlab.com/gomidi/midi/writer"
 	"mvw.org/cctools/util"
 )
 
@@ -16,61 +15,53 @@ const ConnectionMaxWaitTime = time.Second * 5
 const NumNr2xControllers = 42
 
 type Nr2xConnection struct {
-	globalChannel uint8
-	baseChannel   uint8
-	reader        *reader.Reader
-	writer        *writer.Writer
-	closeFunc     func() error
-	responseChan  chan *channel.ControlChange
-	shutdownChan  chan interface{}
+	Config       *Nr2xConnectionConfig
+	readerWriter *util.MidiReaderWriter
+	closeFunc    func() error
+	responseChan chan *channel.ControlChange
+	shutdownChan chan interface{}
 }
 
-func NewNr2xConnection(inPort, outPort uint, globalChannel, baseChannel uint8) (c *Nr2xConnection, errVal error) {
+type Nr2xConnectionConfig struct {
+	InPort         uint  `yaml:"in_port"`
+	OutPort        uint  `yaml:"out_port"`
+	GlobalMidiChan uint8 `yaml:"global_midi_channel"`
+	BaseMidiChan   uint8 `yaml:"base_midi_channel"`
+}
+
+func NewNr2xConnection(conf *Nr2xConnectionConfig) (c *Nr2xConnection, errVal error) {
 	conn := &Nr2xConnection{
-		globalChannel: globalChannel,
-		baseChannel:   baseChannel,
-		responseChan:  make(chan *channel.ControlChange, NumNr2xControllers),
-		shutdownChan:  make(chan interface{}, 1),
+		Config:       conf,
+		responseChan: make(chan *channel.ControlChange, NumNr2xControllers),
+		shutdownChan: make(chan interface{}, 1),
 	}
-	in, out, closeFunc, err := util.GetMidiPorts(inPort, outPort)
+
+	rw, err := util.NewMidiReaderWriter(conf.InPort, conf.OutPort, func(pos *reader.Position, msg midi.Message) {
+		if ccMsg, ok := msg.(channel.ControlChange); ok {
+			conn.responseChan <- &ccMsg
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if errVal != nil {
-			closeFunc()
-		}
-	}()
-	conn.closeFunc = closeFunc
+	conn.readerWriter = rw
 
-	conn.reader = reader.New(
-		reader.NoLogger(),
-		reader.Each(func(pos *reader.Position, msg midi.Message) {
-			if ccMsg, ok := msg.(channel.ControlChange); ok {
-				conn.responseChan <- &ccMsg
-			}
-		}),
-	)
-	conn.reader.ListenTo(in)
-	conn.writer = writer.New(out)
-
-	fmt.Printf("MIDI in port:  %d (%s)\n", in.Number(), in.String())
-	fmt.Printf("MIDI out port: %d (%s)\n", in.Number(), in.String())
+	fmt.Printf("MIDI in port:  %d (%s)\n", conn.readerWriter.In.Number(), conn.readerWriter.In.String())
+	fmt.Printf("MIDI out port: %d (%s)\n", conn.readerWriter.Out.Number(), conn.readerWriter.Out.String())
 
 	return conn, nil
 }
 
 func (conn *Nr2xConnection) SendControlChange(voice, controller, value uint8) error {
-	conn.writer.SetChannel(conn.baseChannel + voice)
-	if err := writer.ControlChange(conn.writer, controller, value); err != nil {
+	if err := conn.readerWriter.ControlChange(conn.Config.BaseMidiChan+voice, controller, value); err != nil {
 		return errors.Wrap(err, "error sending control change message")
 	}
 	return nil
 }
 
 func (conn *Nr2xConnection) GetControllerValues(voice uint8) ([]*util.ControllerValue, error) {
-	acrSysEx := []byte{51, conn.globalChannel, 4, 28, voice}
-	if err := writer.SysEx(conn.writer, acrSysEx); err != nil {
+	acrSysEx := []byte{51, conn.Config.GlobalMidiChan, 4, 28, voice}
+	if err := conn.readerWriter.SysEx(acrSysEx); err != nil {
 		return nil, errors.Wrap(err, "error sending all controllers request")
 	}
 
@@ -104,8 +95,8 @@ func (conn *Nr2xConnection) Close() error {
 	return conn.closeFunc()
 }
 
-func GetProgram(inPort, outPort uint, globalChannel, baseChannel, voice uint8, filename string) error {
-	conn, err := NewNr2xConnection(inPort, outPort, globalChannel, baseChannel)
+func GetProgram(conf *Nr2xConnectionConfig, voice uint8, filename string) error {
+	conn, err := NewNr2xConnection(conf)
 	if err != nil {
 		return err
 	}
@@ -124,8 +115,8 @@ func GetProgram(inPort, outPort uint, globalChannel, baseChannel, voice uint8, f
 	return nil
 }
 
-func SetProgram(inPort, outPort uint, globalChannel, baseChannel, voice uint8, filename string) error {
-	conn, err := NewNr2xConnection(inPort, outPort, globalChannel, baseChannel)
+func SetProgram(conf *Nr2xConnectionConfig, voice uint8, filename string) error {
+	conn, err := NewNr2xConnection(conf)
 	if err != nil {
 		return err
 	}

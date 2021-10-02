@@ -36,6 +36,10 @@ var TonePitchController = []uint8{63, 31}
 var EchoBbmController = []uint8{61, 29}
 var Nd2LsbMsbControllers = [][]uint8{TonePitchController, EchoBbmController}
 
+// Voice change sysex
+var VoiceChangeCcValues = []uint8{0, 26, 51, 77, 102, 107}
+var VoiceChangeController uint8 = 70
+
 // SysEx program msg format
 const ProgramBytes = 210
 const ProgramHeaderBytes = 12
@@ -110,19 +114,27 @@ func LoadControllerBitRanges() {
 }
 
 type Nd2Connection struct {
+	Config       *Nd2ConnectionConfig
 	readerWriter *util.MidiReaderWriter
-	closeFunc    func() error
 	responseChan chan sysex.SysEx
 	shutdownChan chan interface{}
 }
 
-func NewNd2Connection(inPort, outPort uint) (nd2c *Nd2Connection, errVal error) {
+type Nd2ConnectionConfig struct {
+	InPort            uint  `yaml:"in_port"`
+	OutPort           uint  `yaml:"out_port"`
+	BaseMidiChannel   uint8 `yaml:"base_midi_channel"`
+	GlobalMidiChannel uint8 `yaml:"global_midi_channel"`
+}
+
+func NewNd2Connection(config *Nd2ConnectionConfig) (nd2c *Nd2Connection, errVal error) {
 	conn := &Nd2Connection{
+		Config:       config,
 		responseChan: make(chan sysex.SysEx, 1),
 		shutdownChan: make(chan interface{}, 1),
 	}
 
-	readerWriter, err := util.NewMidiReaderWriter(inPort, outPort, func(pos *reader.Position, msg midi.Message) {
+	readerWriter, err := util.NewMidiReaderWriter(config.InPort, config.OutPort, func(pos *reader.Position, msg midi.Message) {
 		if sysExMsg, ok := msg.(sysex.SysEx); ok {
 			conn.responseChan <- sysExMsg
 		}
@@ -174,8 +186,16 @@ func (conn *Nd2Connection) Handshake() error {
 	return nil
 }
 
-func (conn *Nd2Connection) SendControlChange(channel, controller, value uint8) error {
-	if err := conn.readerWriter.ControlChange(channel, controller, value); err != nil {
+func (conn *Nd2Connection) SendVoiceFocusChange(voice uint8) error {
+	if err := conn.readerWriter.ControlChange(conn.Config.GlobalMidiChannel, VoiceChangeController, VoiceChangeCcValues[voice]); err != nil {
+		return errors.Wrap(err, "error voice focus change change message")
+	}
+	time.Sleep(ConnectionSleepTime)
+	return nil
+}
+
+func (conn *Nd2Connection) SendControlChange(voice, controller, value uint8) error {
+	if err := conn.readerWriter.ControlChange(conn.Config.BaseMidiChannel+voice, controller, value); err != nil {
 		return errors.Wrap(err, "error sending control change message")
 	}
 	time.Sleep(ConnectionSleepTime)
@@ -195,7 +215,7 @@ func (conn *Nd2Connection) waitForSysExMsg() (sysex.SysEx, error) {
 
 func (conn *Nd2Connection) Close() error {
 	conn.shutdownChan <- nil
-	return conn.closeFunc()
+	return conn.readerWriter.Close()
 }
 
 type Nd2ProgramSysex sysex.SysEx

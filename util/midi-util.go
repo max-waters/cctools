@@ -254,7 +254,9 @@ func NewMidiReaderWriter(inPort, outPort uint, msgReadFunction func(pos *reader.
 		reader.NoLogger(),
 		reader.Each(msgReadFunction),
 	)
-	rw.Reader.ListenTo(in)
+	if err := rw.Reader.ListenTo(in); err != nil {
+		return nil, err
+	}
 	rw.Writer = writer.New(out)
 
 	return rw, nil

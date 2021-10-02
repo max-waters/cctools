@@ -6,8 +6,8 @@ import (
 	"mvw.org/cctools/util"
 )
 
-func GetProgram(inPort, outPort uint, baseChannel uint8, filename string) error {
-	conn, err := NewNd2Connection(inPort, outPort)
+func GetProgram(conf *Nd2ConnectionConfig, filename string) error {
+	conn, err := NewNd2Connection(conf)
 	if err != nil {
 		return err
 	}
@@ -32,8 +32,8 @@ func GetProgram(inPort, outPort uint, baseChannel uint8, filename string) error 
 	return nil
 }
 
-func SetProgram(inPort, outPort uint, baseChannel uint8, filename string) error {
-	conn, err := NewNd2Connection(inPort, outPort)
+func SetProgram(conf *Nd2ConnectionConfig, filename string) error {
+	conn, err := NewNd2Connection(conf)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func SetProgram(inPort, outPort uint, baseChannel uint8, filename string) error 
 	}
 
 	for _, value := range values {
-		if err := conn.SendControlChange(value.Voice+baseChannel, value.Controller, value.Value); err != nil {
+		if err := conn.SendControlChange(value.Voice, value.Controller, value.Value); err != nil {
 			return err
 		}
 	}

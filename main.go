@@ -1,11 +1,12 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+
+	flag "github.com/spf13/pflag"
 
 	_ "embed"
 
@@ -16,18 +17,9 @@ import (
 )
 
 type DefaultFlags struct {
-	Nr2x struct {
-		InPort         uint  `yaml:"in_port"`
-		OutPort        uint  `yaml:"out_port"`
-		GlobalMidiChan uint8 `yaml:"global_midi_channel"`
-		BaseMidiChan   uint8 `yaml:"base_midi_channel"`
-		Voice          uint8 `yaml:"voice"`
-	} `yaml:"nr2x"`
-	Nd2 struct {
-		InPort       uint  `yaml:"in_port"`
-		OutPort      uint  `yaml:"out_port"`
-		BaseMidiChan uint8 `yaml:"base_midi_channel"`
-	} `yaml:"nd2"`
+	Nr2x *nr2x.Nr2xConnectionConfig `yaml:"nr2x"`
+	Nd2  *nd2.Nd2ConnectionConfig   `yaml:"nd2"`
+	NmG2 *nd2.NmG2Config            `yaml:"nmg2"`
 }
 
 //go:embed defaults.yaml
@@ -43,6 +35,7 @@ const CommandNd2Set = "nd2-set"
 const CommandNd2Get = "nd2-get"
 const CommandNd2Decode = "nd2-decode"
 const CommandNd2Test = "nd2-test"
+const CommandNd2Nmg2 = "nd2-nmg2"
 
 func init() {
 	Defaults = &DefaultFlags{}
@@ -53,8 +46,7 @@ func init() {
 
 func main() {
 	if len(os.Args) <= 1 {
-		fmt.Printf("No command supplied. ")
-		PrintCommandsAndExit()
+		PrintCommandsAndExit("No command supplied")
 	}
 
 	command := os.Args[1]
@@ -79,14 +71,15 @@ func main() {
 		RunNd2Decoder()
 	case CommandNd2Test:
 		RunNd2Test()
+	case CommandNd2Nmg2:
+		RunNd2NmG2()
 	default:
-		fmt.Printf("Unknown command: '%s'. ", command)
-		PrintCommandsAndExit()
+		PrintCommandsAndExit(fmt.Sprintf("Unknown command: '%s'", command))
 	}
 }
 
-func PrintCommandsAndExit() {
-	fmt.Printf("Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n",
+func PrintCommandsAndExit(cause string) {
+	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
 		CommandList, CommandLog, CommandListen, CommandNr2xGet, CommandNr2xSet,
 		CommandNd2Get, CommandNd2Set, CommandNd2Decode, CommandNd2Test)
 	os.Exit(1)
@@ -116,75 +109,83 @@ func RunControlChangeListener() {
 }
 
 func RunNr2xGet() {
-	inPort := flag.Uint("i", Defaults.Nr2x.InPort, "MIDI in port")
-	outPort := flag.Uint("o", Defaults.Nr2x.OutPort, "MIDI out port")
-	globalChan := flag.Uint("g", uint(Defaults.Nr2x.GlobalMidiChan), "Global MIDI channel ")
-	baseChan := flag.Uint("c", uint(Defaults.Nr2x.BaseMidiChan), "MIDI channel for voice/slot 0")
-	voice := flag.Uint("v", uint(Defaults.Nr2x.Voice), "The voice/slot to get")
-
+	SetNr2xFlags()
+	voice := flag.Uint8("v", 0, "The voice/slot to get")
 	ParseFlagsWithPositionalArg("output-file")
 	filename := flag.Args()[0]
 
-	ExitOnErr(nr2x.GetProgram(*inPort, *outPort, uint8(*globalChan), uint8(*baseChan), uint8(*voice), filename))
+	ExitOnErr(nr2x.GetProgram(Defaults.Nr2x, *voice, filename))
 }
 
 func RunNr2xSet() {
-	inPort := flag.Uint("i", Defaults.Nr2x.InPort, "MIDI in port")
-	outPort := flag.Uint("o", Defaults.Nr2x.OutPort, "MIDI out port")
-	globalChan := flag.Uint("g", uint(Defaults.Nr2x.GlobalMidiChan), "Global MIDI channel ")
-	baseChan := flag.Uint("c", uint(Defaults.Nr2x.BaseMidiChan), "MIDI channel for voice/slot 0")
-	voice := flag.Uint("v", uint(Defaults.Nr2x.Voice), "The voice/slot to set")
-
+	SetNr2xFlags()
+	voice := flag.Uint8("v", 0, "The voice/slot to get")
 	ParseFlagsWithPositionalArg("input-file")
 	filename := flag.Args()[0]
 
-	ExitOnErr(nr2x.SetProgram(*inPort, *outPort, uint8(*globalChan), uint8(*baseChan), uint8(*voice), filename))
+	ExitOnErr(nr2x.GetProgram(Defaults.Nr2x, *voice, filename))
 }
 
 func RunNd2Get() {
-	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
-	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
-	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
-
+	SetNd2Flags()
 	ParseFlagsWithPositionalArg("output-file")
 	filename := flag.Args()[0]
 
-	ExitOnErr(nd2.GetProgram(*inPort, *outPort, uint8(*baseChan), filename))
+	ExitOnErr(nd2.GetProgram(Defaults.Nd2, filename))
 }
 
 func RunNd2Set() {
-	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
-	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
-	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
-
+	SetNd2Flags()
 	ParseFlagsWithPositionalArg("input-file")
 	filename := flag.Args()[0]
 
-	ExitOnErr(nd2.SetProgram(*inPort, *outPort, uint8(*baseChan), filename))
+	ExitOnErr(nd2.SetProgram(Defaults.Nd2, filename))
 }
 
 func RunNd2Decoder() {
-	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
-	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
-	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
+	SetNd2Flags()
 	flag.Parse()
 
-	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*baseChan))
+	nd2Decoder, err := nd2.NewNd2Decoder(Defaults.Nd2)
 	ExitOnErr(err)
 	CallOnShutdownSignal(nd2Decoder.Stop)
 	ExitOnErr(nd2Decoder.Run())
 }
 
 func RunNd2Test() {
-	inPort := flag.Uint("i", Defaults.Nd2.InPort, "MIDI in port")
-	outPort := flag.Uint("o", Defaults.Nd2.OutPort, "MIDI out port")
-	baseChan := flag.Uint("c", uint(Defaults.Nd2.BaseMidiChan), "MIDI channel for voice 0")
+	SetNd2Flags()
 	flag.Parse()
 
-	nd2Decoder, err := nd2.NewNd2Decoder(uint(*inPort), uint(*outPort), uint8(*baseChan))
+	nd2Decoder, err := nd2.NewNd2Decoder(Defaults.Nd2)
 	ExitOnErr(err)
 	CallOnShutdownSignal(nd2Decoder.Stop)
 	ExitOnErr(nd2Decoder.Test())
+}
+
+func RunNd2NmG2() {
+	SetNd2Flags()
+	flag.UintVar(&Defaults.NmG2.InPort, "ig", Defaults.NmG2.InPort, "G2 MIDI in port")
+	flag.UintVar(&Defaults.NmG2.OutPort, "og", Defaults.NmG2.OutPort, "G2 MIDI out port")
+	flag.Parse()
+
+	nmg2Conn, err := nd2.NewNmG2Connection(Defaults.Nd2, Defaults.NmG2)
+	ExitOnErr(err)
+	CallOnShutdownSignal(nmg2Conn.Stop)
+	ExitOnErr(nmg2Conn.Run())
+}
+
+func SetNr2xFlags() {
+	flag.UintVar(&Defaults.Nr2x.InPort, "i", Defaults.Nr2x.InPort, "MIDI in port")
+	flag.UintVar(&Defaults.Nr2x.OutPort, "o", Defaults.Nr2x.OutPort, "MIDI out port")
+	flag.Uint8Var(&Defaults.Nr2x.BaseMidiChan, "b", Defaults.Nr2x.BaseMidiChan, "MIDI channel for voice/slot 0")
+	flag.Uint8Var(&Defaults.Nr2x.GlobalMidiChan, "g", Defaults.Nr2x.GlobalMidiChan, "Global MIDI channel ")
+}
+
+func SetNd2Flags() {
+	flag.UintVar(&Defaults.Nd2.InPort, "i", Defaults.Nd2.InPort, "MIDI in port")
+	flag.UintVar(&Defaults.Nd2.OutPort, "o", Defaults.Nd2.InPort, "MIDI in port")
+	flag.Uint8Var(&Defaults.Nd2.BaseMidiChannel, "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for voice 0")
+	flag.Uint8Var(&Defaults.Nd2.GlobalMidiChannel, "g", Defaults.Nd2.GlobalMidiChannel, "Global MIDI channel")
 }
 
 func ExitOnErr(err error) {
