@@ -175,25 +175,9 @@ func (cont *NmG2Controller) Nd2ToNg2(controller, value uint8) []*util.Controller
 	}
 }
 
-func (cont *NmG2Controller) Nd2PitchToNg2Pitch(pitch, semitone uint8) []*util.ControllerValue {
-	ng2Pitch := pitch / 2
-	if semitone >= 64 {
-		ng2Pitch++
-	}
-
-	octave := 0
-	if pitch >= 64 {
-		octave = 64
-	}
-
-	return []*util.ControllerValue{
-		{Controller: Ng2PitchController, Value: ng2Pitch},
-		{Controller: Ng2OctaveController, Value: uint8(octave)}}
-}
-
 func (cont *NmG2Controller) Ng2ToNd2(controller, value uint8) []*util.ControllerValue {
 	if controller == Ng2PitchController || controller == Ng2OctaveController {
-		// get current pitch and
+		// get current pitch and octave
 		ng2Pitch := cont.Nd2PitchToNg2Pitch(cont.Nd2Program[cont.nd2Voice][TonePitchController[1]], cont.Nd2Program[cont.nd2Voice][TonePitchController[0]])
 		if controller == Ng2PitchController {
 			return cont.Ng2PitchToNd2Pitch(value, ng2Pitch[1].Value)
@@ -206,6 +190,20 @@ func (cont *NmG2Controller) Ng2ToNd2(controller, value uint8) []*util.Controller
 	return []*util.ControllerValue{
 		{Controller: nd2Controller, Value: uint8(float32(value) * ControllerScaleFactors[nd2Controller])},
 	}
+}
+
+func (cont *NmG2Controller) Nd2PitchToNg2Pitch(pitch, semitone uint8) []*util.ControllerValue {
+	ng2Pitch := (pitch % 64) * 2
+	if semitone >= 64 {
+		ng2Pitch++
+	}
+	octave := (pitch / 64) * 64
+
+	fmt.Printf("p: %d semi: %d -> pitch: %d oct: %d\n", pitch, semitone, ng2Pitch, octave)
+
+	return []*util.ControllerValue{
+		{Controller: Ng2PitchController, Value: ng2Pitch},
+		{Controller: Ng2OctaveController, Value: uint8(octave)}}
 }
 
 func (cont *NmG2Controller) Ng2PitchToNd2Pitch(pitch, octave uint8) []*util.ControllerValue {
