@@ -119,7 +119,7 @@ func RunNr2xGet() {
 
 func RunNr2xSet() {
 	SetNr2xFlags()
-	voice := flag.Uint8("v", 0, "The voice/slot to get")
+	voice := flag.Uint8("v", 0, "The voice/slot to set")
 	ParseFlagsWithPositionalArg("input-file")
 	filename := flag.Args()[0]
 

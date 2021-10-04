@@ -32,7 +32,7 @@ var SimpleNd2Controllers = []uint8{
 	50, 51, 52, 53, 54, 55, 56, 57, 58, 59}
 
 // Controllers with LSB/MSB pairs
-var TonePitchController = []uint8{63, 31}
+var TonePitchController = []uint8{63, 31} // semitone, tone
 var EchoBbmController = []uint8{61, 29}
 var Nd2LsbMsbControllers = [][]uint8{TonePitchController, EchoBbmController}
 
