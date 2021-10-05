@@ -164,8 +164,8 @@ func RunNd2Test() {
 
 func RunNd2NmG2() {
 	SetNd2Flags()
-	flag.UintVar(&Defaults.NmG2.InPort, "ig", Defaults.NmG2.InPort, "G2 MIDI in port")
-	flag.UintVar(&Defaults.NmG2.OutPort, "og", Defaults.NmG2.OutPort, "G2 MIDI out port")
+	flag.UintVar(&Defaults.NmG2.InPort, "ig", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
+	flag.UintVar(&Defaults.NmG2.OutPort, "og", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
 	flag.Parse()
 
 	nmg2Conn, err := nd2.NewNmG2Connection(Defaults.Nd2, Defaults.NmG2)
@@ -175,17 +175,17 @@ func RunNd2NmG2() {
 }
 
 func SetNr2xFlags() {
-	flag.UintVar(&Defaults.Nr2x.InPort, "i", Defaults.Nr2x.InPort, "MIDI in port")
-	flag.UintVar(&Defaults.Nr2x.OutPort, "o", Defaults.Nr2x.OutPort, "MIDI out port")
-	flag.Uint8Var(&Defaults.Nr2x.BaseMidiChan, "b", Defaults.Nr2x.BaseMidiChan, "MIDI channel for voice/slot 0")
-	flag.Uint8Var(&Defaults.Nr2x.GlobalMidiChan, "g", Defaults.Nr2x.GlobalMidiChan, "Global MIDI channel ")
+	flag.UintVar(&Defaults.Nr2x.InPort, "i", Defaults.Nr2x.InPort, "Nord Rack 2X MIDI in port")
+	flag.UintVar(&Defaults.Nr2x.OutPort, "o", Defaults.Nr2x.OutPort, "Nord Rack 2X MIDI out port")
+	flag.Uint8Var(&Defaults.Nr2x.BaseMidiChan, "b", Defaults.Nr2x.BaseMidiChan, "MIDI channel for Nord Rack 2X voice/slot A")
+	flag.Uint8Var(&Defaults.Nr2x.GlobalMidiChan, "g", Defaults.Nr2x.GlobalMidiChan, "Nord Rack 2X Global MIDI channel")
 }
 
 func SetNd2Flags() {
-	flag.UintVar(&Defaults.Nd2.InPort, "i", Defaults.Nd2.InPort, "MIDI in port")
-	flag.UintVar(&Defaults.Nd2.OutPort, "o", Defaults.Nd2.InPort, "MIDI in port")
-	flag.Uint8Var(&Defaults.Nd2.BaseMidiChannel, "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for voice 0")
-	flag.Uint8Var(&Defaults.Nd2.GlobalMidiChannel, "g", Defaults.Nd2.GlobalMidiChannel, "Global MIDI channel")
+	flag.UintVar(&Defaults.Nd2.InPort, "i", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
+	flag.UintVar(&Defaults.Nd2.OutPort, "o", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
+	flag.Uint8Var(&Defaults.Nd2.BaseMidiChannel, "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for Nord Drum 2 voice 1")
+	flag.Uint8Var(&Defaults.Nd2.GlobalMidiChannel, "g", Defaults.Nd2.GlobalMidiChannel, "Nord Drum 2 Global MIDI channel")
 }
 
 func ExitOnErr(err error) {
