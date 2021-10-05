@@ -78,7 +78,6 @@ func ListPorts() (errVal error) {
 	}
 	if len(ins) == 0 {
 		fmt.Println("No MIDI in ports found")
-		return
 	} else {
 		fmt.Println("MIDI in ports:")
 		for _, port := range ins {
@@ -93,7 +92,6 @@ func ListPorts() (errVal error) {
 	}
 	if len(outs) == 0 {
 		fmt.Println("No MIDI out ports found")
-		return
 	} else {
 		fmt.Println("MIDI out ports:")
 		for _, port := range outs {
