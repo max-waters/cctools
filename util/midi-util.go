@@ -34,6 +34,7 @@ func NewMidiLogger(port uint) *MidiLogger {
 }
 
 func (logger *MidiLogger) Start() error {
+	fmt.Printf("Opening port %d\n", logger.port)
 	in, closeFunc, err := GetMidiInPort(logger.port)
 	if err != nil {
 		return err
@@ -200,7 +201,7 @@ func openMidiInPort(drv *driver.Driver, inPortNum uint) (inPort midi.In, errVal 
 	if err != nil {
 		return nil, err
 	}
-	if int(inPortNum) > len(ins) {
+	if int(inPortNum) >= len(ins) {
 		return nil, fmt.Errorf("unknown port number: %d", inPortNum)
 	}
 	in := ins[inPortNum]

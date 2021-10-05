@@ -93,7 +93,7 @@ func RunMidiLogger() {
 	port := flag.Uint("p", 0, "The port to listen to")
 	flag.Parse()
 
-	midiLogger := util.NewMidiLogger(uint(*port))
+	midiLogger := util.NewMidiLogger(*port)
 	CallOnShutdownSignal(midiLogger.Stop)
 	ExitOnErr(midiLogger.Start())
 }
