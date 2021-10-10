@@ -79,9 +79,9 @@ func main() {
 }
 
 func PrintCommandsAndExit(cause string) {
-	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
+	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
 		CommandList, CommandLog, CommandListen, CommandNr2xGet, CommandNr2xSet,
-		CommandNd2Get, CommandNd2Set, CommandNd2Decode, CommandNd2Test)
+		CommandNd2Get, CommandNd2Set, CommandNd2Nmg2, CommandNd2Decode, CommandNd2Test)
 	os.Exit(1)
 }
 
