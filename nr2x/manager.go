@@ -17,7 +17,6 @@ const NumNr2xControllers = 42
 type Nr2xConnection struct {
 	Config       *Nr2xConnectionConfig
 	readerWriter *util.MidiReaderWriter
-	closeFunc    func() error
 	responseChan chan *channel.ControlChange
 	shutdownChan chan interface{}
 }
@@ -90,9 +89,8 @@ func (conn *Nr2xConnection) waitForControllerValueMsg() (*channel.ControlChange,
 	}
 }
 
-func (conn *Nr2xConnection) Close() error {
+func (conn *Nr2xConnection) Close() {
 	conn.shutdownChan <- nil
-	return conn.closeFunc()
 }
 
 func GetProgram(conf *Nr2xConnectionConfig, voice uint8, filename string) error {
