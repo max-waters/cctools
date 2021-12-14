@@ -36,6 +36,7 @@ const CommandNd2Get = "nd2-get"
 const CommandNd2Decode = "nd2-decode"
 const CommandNd2Test = "nd2-test"
 const CommandNd2Nmg2 = "nd2-nmg2"
+const CommandPrintDefaults = "print-defaults"
 
 func init() {
 	Defaults = &DefaultFlags{}
@@ -73,6 +74,8 @@ func main() {
 		RunNd2Test()
 	case CommandNd2Nmg2:
 		RunNd2NmG2()
+	case CommandPrintDefaults:
+		PrintDefaults()
 	default:
 		PrintCommandsAndExit(fmt.Sprintf("Unknown command: '%s'", command))
 	}
@@ -214,4 +217,12 @@ func ParseFlagsWithPositionalArg(argName string) {
 		flag.Usage()
 		os.Exit(1)
 	}
+}
+
+func PrintDefaults() {
+	bts, err := yaml.Marshal(Defaults)
+	if err != nil {
+		ExitOnErr(err)
+	}
+	fmt.Print(string(bts))
 }
