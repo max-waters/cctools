@@ -120,12 +120,12 @@ func RunMidiLogger() {
 }
 
 func RunControlChangeListener() {
-	port := flag.Uint("p", 0, "The port to listen to")
-	channel := flag.Uint("c", 0, "The channel to listen to")
+	port := flag.Uint("p", 1, "The port to listen to")
+	channel := flag.Uint("c", 1, "The channel to listen to")
 	outputfile := flag.String("f", "", "Output file name")
 	flag.Parse()
 
-	cclv := util.NewControlChangeListenerView(uint(*port), uint8(*channel), *outputfile)
+	cclv := util.NewControlChangeListenerView(uint(*port)-1, uint8(*channel)-1, *outputfile)
 	ExitOnErr(cclv.Start())
 }
 

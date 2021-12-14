@@ -34,7 +34,7 @@ func NewMidiLogger(port uint) *MidiLogger {
 }
 
 func (logger *MidiLogger) Start() error {
-	fmt.Printf("Opening port %d\n", logger.port)
+	fmt.Printf("Opening port %d\n", logger.port+1)
 	in, closeFunc, err := GetMidiInPort(logger.port)
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (logger *MidiLogger) Start() error {
 		}),
 	)
 
-	fmt.Printf("Listening to port %d (%s)\n", in.Number(), in.String())
+	fmt.Printf("Listening to port %d (%s)\n", in.Number()+1, in.String())
 	reader.ListenTo(in)
 	<-logger.shutdownChan
 	return nil
@@ -82,7 +82,7 @@ func ListPorts() (errVal error) {
 	} else {
 		fmt.Println("MIDI in ports:")
 		for _, port := range ins {
-			fmt.Printf("%v: %s\n", port.Number(), port.String())
+			fmt.Printf("%v: %s\n", port.Number()+1, port.String())
 		}
 	}
 
@@ -96,7 +96,7 @@ func ListPorts() (errVal error) {
 	} else {
 		fmt.Println("MIDI out ports:")
 		for _, port := range outs {
-			fmt.Printf("%v: %s\n", port.Number(), port.String())
+			fmt.Printf("%v: %s\n", port.Number()+1, port.String())
 		}
 	}
 
@@ -202,7 +202,7 @@ func openMidiInPort(drv *driver.Driver, inPortNum uint) (inPort midi.In, errVal 
 		return nil, err
 	}
 	if int(inPortNum) >= len(ins) {
-		return nil, fmt.Errorf("unknown port number: %d", inPortNum)
+		return nil, fmt.Errorf("unknown port number: %d", inPortNum+1)
 	}
 	in := ins[inPortNum]
 	if err := in.Open(); err != nil {
@@ -217,7 +217,7 @@ func openMidiOutPort(drv *driver.Driver, outPortNum uint) (outPort midi.Out, err
 		return nil, err
 	}
 	if int(outPortNum) > len(outs) {
-		return nil, fmt.Errorf("unknown port number: %d", outPortNum)
+		return nil, fmt.Errorf("unknown port number: %d", outPortNum+1)
 	}
 	out := outs[outPortNum]
 	if err := out.Open(); err != nil {
