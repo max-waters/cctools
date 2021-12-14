@@ -22,6 +22,24 @@ type DefaultFlags struct {
 	NmG2 *nd2.NmG2Config            `yaml:"nmg2"`
 }
 
+func (def DefaultFlags) SetZeroIndexing() {
+	def.Nr2x.GlobalMidiChan--
+	def.Nr2x.InPort--
+	def.Nr2x.OutPort--
+	for v, c := range def.Nr2x.VoiceChannelMap {
+		def.Nr2x.VoiceChannelMap[v] = c - 1
+	}
+
+	def.Nd2.BaseMidiChannel--
+	def.Nd2.GlobalMidiChannel--
+	def.Nd2.InPort--
+	def.Nd2.OutPort--
+
+	def.NmG2.BaseMidiChan--
+	def.NmG2.InPort--
+	def.NmG2.OutPort--
+}
+
 //go:embed defaults.yaml
 var DefaultsFileBytes []byte
 var Defaults *DefaultFlags
@@ -93,10 +111,10 @@ func ListPorts() {
 }
 
 func RunMidiLogger() {
-	port := flag.Uint("p", 0, "The port to listen to")
+	port := flag.Uint("p", 1, "The port to listen to")
 	flag.Parse()
 
-	midiLogger := util.NewMidiLogger(*port)
+	midiLogger := util.NewMidiLogger(*port - 1)
 	CallOnShutdownSignal(midiLogger.Stop)
 	ExitOnErr(midiLogger.Start())
 }
@@ -113,26 +131,27 @@ func RunControlChangeListener() {
 
 func RunNr2xGet() {
 	SetNr2xFlags()
-	voice := flag.Uint8("v", 0, "The voice/slot to get")
 	ParseFlagsWithPositionalArg("output-file")
 	filename := flag.Args()[0]
+	Defaults.SetZeroIndexing()
 
-	ExitOnErr(nr2x.GetProgram(Defaults.Nr2x, *voice, filename))
+	ExitOnErr(nr2x.GetProgram(Defaults.Nr2x, filename))
 }
 
 func RunNr2xSet() {
 	SetNr2xFlags()
-	voice := flag.Uint8("v", 0, "The voice/slot to set")
 	ParseFlagsWithPositionalArg("input-file")
 	filename := flag.Args()[0]
+	Defaults.SetZeroIndexing()
 
-	ExitOnErr(nr2x.GetProgram(Defaults.Nr2x, *voice, filename))
+	ExitOnErr(nr2x.SetProgram(Defaults.Nr2x, filename))
 }
 
 func RunNd2Get() {
 	SetNd2Flags()
 	ParseFlagsWithPositionalArg("output-file")
 	filename := flag.Args()[0]
+	Defaults.SetZeroIndexing()
 
 	ExitOnErr(nd2.GetProgram(Defaults.Nd2, filename))
 }
@@ -141,6 +160,7 @@ func RunNd2Set() {
 	SetNd2Flags()
 	ParseFlagsWithPositionalArg("input-file")
 	filename := flag.Args()[0]
+	Defaults.SetZeroIndexing()
 
 	ExitOnErr(nd2.SetProgram(Defaults.Nd2, filename))
 }
@@ -148,6 +168,7 @@ func RunNd2Set() {
 func RunNd2Decoder() {
 	SetNd2Flags()
 	flag.Parse()
+	Defaults.SetZeroIndexing()
 
 	nd2Decoder, err := nd2.NewNd2Decoder(Defaults.Nd2)
 	ExitOnErr(err)
@@ -158,6 +179,7 @@ func RunNd2Decoder() {
 func RunNd2Test() {
 	SetNd2Flags()
 	flag.Parse()
+	Defaults.SetZeroIndexing()
 
 	nd2Decoder, err := nd2.NewNd2Decoder(Defaults.Nd2)
 	ExitOnErr(err)
@@ -171,6 +193,7 @@ func RunNd2NmG2() {
 	flag.UintVar(&Defaults.NmG2.OutPort, "og", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
 	flag.Parse()
 
+	Defaults.SetZeroIndexing()
 	nmg2Conn, err := nd2.NewNmG2Connection(Defaults.Nd2, Defaults.NmG2)
 	ExitOnErr(err)
 	CallOnShutdownSignal(nmg2Conn.Stop)
@@ -180,7 +203,7 @@ func RunNd2NmG2() {
 func SetNr2xFlags() {
 	flag.UintVar(&Defaults.Nr2x.InPort, "i", Defaults.Nr2x.InPort, "Nord Rack 2X MIDI in port")
 	flag.UintVar(&Defaults.Nr2x.OutPort, "o", Defaults.Nr2x.OutPort, "Nord Rack 2X MIDI out port")
-	flag.Uint8Var(&Defaults.Nr2x.BaseMidiChan, "b", Defaults.Nr2x.BaseMidiChan, "MIDI channel for Nord Rack 2X voice/slot A")
+	flag.StringVar(&Defaults.Nr2x.Voice, "v", Defaults.Nr2x.Voice, "Nord Rack 2X voice/slot [A, B, C, D]")
 	flag.Uint8Var(&Defaults.Nr2x.GlobalMidiChan, "g", Defaults.Nr2x.GlobalMidiChan, "Nord Rack 2X Global MIDI channel")
 }
 

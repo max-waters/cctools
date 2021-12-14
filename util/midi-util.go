@@ -273,3 +273,9 @@ func (rw *MidiReaderWriter) ControlChange(channel, controller uint8, value uint8
 func (rw *MidiReaderWriter) SysEx(data []byte) error {
 	return writer.SysEx(rw.Writer, data)
 }
+
+func (rw *MidiReaderWriter) PrintPorts() {
+	// add one for zero indexing
+	fmt.Printf("MIDI in port:  %d (%s)\n", rw.In.Number()+1, rw.In.String())
+	fmt.Printf("MIDI out port: %d (%s)\n", rw.Out.Number()+1, rw.Out.String())
+}

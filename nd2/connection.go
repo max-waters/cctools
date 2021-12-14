@@ -151,8 +151,7 @@ func NewNd2Connection(config *Nd2ConnectionConfig) (nd2c *Nd2Connection, errVal 
 	}
 
 	fmt.Println("Connected to ND2")
-	fmt.Printf("MIDI in port:  %d (%s)\n", conn.readerWriter.In.Number(), conn.readerWriter.In.String())
-	fmt.Printf("MIDI out port: %d (%s)\n", conn.readerWriter.Out.Number(), conn.readerWriter.Out.String())
+	conn.readerWriter.PrintPorts()
 
 	return conn, nil
 }

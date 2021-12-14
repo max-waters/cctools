@@ -76,8 +76,7 @@ func NewNmG2Connection(nd2Config *Nd2ConnectionConfig, nmG2Config *NmG2Config) (
 	cont.NmG2Connection = nmG2Conn
 
 	fmt.Println("Listening to G2")
-	fmt.Printf("MIDI in port:  %d (%s)\n", cont.NmG2Connection.In.Number(), cont.NmG2Connection.In.String())
-	fmt.Printf("MIDI out port: %d (%s)\n", cont.NmG2Connection.Out.Number(), cont.NmG2Connection.Out.String())
+	cont.NmG2Connection.PrintPorts()
 
 	// set to voice 0
 	if err := cont.Nd2Connection.SendVoiceFocusChange(0); err != nil {

@@ -22,13 +22,28 @@ type Nr2xConnection struct {
 }
 
 type Nr2xConnectionConfig struct {
-	InPort         uint  `yaml:"in_port"`
-	OutPort        uint  `yaml:"out_port"`
-	GlobalMidiChan uint8 `yaml:"global_midi_channel"`
-	BaseMidiChan   uint8 `yaml:"base_midi_channel"`
+	InPort          uint             `yaml:"in_port"`
+	OutPort         uint             `yaml:"out_port"`
+	GlobalMidiChan  uint8            `yaml:"global_midi_channel"`
+	Voice           string           `yaml:"voice"`
+	voiceMidiChan   uint8            `yaml:"-"`
+	VoiceChannelMap map[string]uint8 `yaml:"voice_channel_map"`
+}
+
+func (conf *Nr2xConnectionConfig) setVoiceMidiChan() error {
+	channel, ok := conf.VoiceChannelMap[conf.Voice]
+	if !ok {
+		return errors.Errorf("no channel configured for voice '%s'", conf.Voice)
+	}
+	conf.voiceMidiChan = channel
+	return nil
 }
 
 func NewNr2xConnection(conf *Nr2xConnectionConfig) (c *Nr2xConnection, errVal error) {
+	if err := conf.setVoiceMidiChan(); err != nil {
+		return nil, err
+	}
+
 	conn := &Nr2xConnection{
 		Config:       conf,
 		responseChan: make(chan *channel.ControlChange, NumNr2xControllers),
@@ -45,21 +60,20 @@ func NewNr2xConnection(conf *Nr2xConnectionConfig) (c *Nr2xConnection, errVal er
 	}
 	conn.readerWriter = rw
 
-	fmt.Printf("MIDI in port:  %d (%s)\n", conn.readerWriter.In.Number(), conn.readerWriter.In.String())
-	fmt.Printf("MIDI out port: %d (%s)\n", conn.readerWriter.Out.Number(), conn.readerWriter.Out.String())
+	conn.readerWriter.PrintPorts()
 
 	return conn, nil
 }
 
-func (conn *Nr2xConnection) SendControlChange(voice, controller, value uint8) error {
-	if err := conn.readerWriter.ControlChange(conn.Config.BaseMidiChan+voice, controller, value); err != nil {
+func (conn *Nr2xConnection) SendControlChange(controller, value uint8) error {
+	if err := conn.readerWriter.ControlChange(conn.Config.voiceMidiChan, controller, value); err != nil {
 		return errors.Wrap(err, "error sending control change message")
 	}
 	return nil
 }
 
-func (conn *Nr2xConnection) GetControllerValues(voice uint8) ([]*util.ControllerValue, error) {
-	acrSysEx := []byte{51, conn.Config.GlobalMidiChan, 4, 28, voice}
+func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, error) {
+	acrSysEx := []byte{51, conn.Config.GlobalMidiChan, 4, 28, conn.Config.voiceMidiChan}
 	if err := conn.readerWriter.SysEx(acrSysEx); err != nil {
 		return nil, errors.Wrap(err, "error sending all controllers request")
 	}
@@ -93,14 +107,14 @@ func (conn *Nr2xConnection) Close() {
 	conn.shutdownChan <- nil
 }
 
-func GetProgram(conf *Nr2xConnectionConfig, voice uint8, filename string) error {
+func GetProgram(conf *Nr2xConnectionConfig, filename string) error {
 	conn, err := NewNr2xConnection(conf)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	controllerValues, err := conn.GetControllerValues(voice)
+	controllerValues, err := conn.GetControllerValues()
 	if err != nil {
 		return err
 	}
@@ -109,11 +123,11 @@ func GetProgram(conf *Nr2xConnectionConfig, voice uint8, filename string) error 
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Saved NR2X program to %s\n", filename)
+	fmt.Printf("Saved NR2X voice %s to %s\n", conf.Voice, filename)
 	return nil
 }
 
-func SetProgram(conf *Nr2xConnectionConfig, voice uint8, filename string) error {
+func SetProgram(conf *Nr2xConnectionConfig, filename string) error {
 	conn, err := NewNr2xConnection(conf)
 	if err != nil {
 		return err
@@ -126,12 +140,12 @@ func SetProgram(conf *Nr2xConnectionConfig, voice uint8, filename string) error 
 	}
 
 	for _, controllerValue := range controllerValues {
-		if err := conn.SendControlChange(voice, controllerValue.Controller, controllerValue.Value); err != nil {
+		if err := conn.SendControlChange(controllerValue.Controller, controllerValue.Value); err != nil {
 			return err
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	fmt.Printf("Sent program %s to NR2X\n", filename)
+	fmt.Printf("Sent program %s to NR2X voice %s\n", filename, conf.Voice)
 	return nil
 }
