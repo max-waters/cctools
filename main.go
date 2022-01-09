@@ -126,6 +126,7 @@ func RunControlChangeListener() {
 	flag.Parse()
 
 	cclv := util.NewControlChangeListenerView(uint(*port)-1, uint8(*channel)-1, *outputfile)
+	CallOnShutdownSignal(cclv.Stop)
 	ExitOnErr(cclv.Start())
 }
 

@@ -103,7 +103,7 @@ func (cclv *ControlChangeListenerView) print(clearScreen bool) {
 	}
 
 	sb.WriteString("\033[0;0H") // move to top
-	sb.WriteString(fmt.Sprintf("Listening to channel %d on port %d (%s)\n", cclv.ccl.channel, cclv.ccl.in.Number(), cclv.ccl.in.String()))
+	sb.WriteString(fmt.Sprintf("Listening to channel %d on port %d (%s)\n", cclv.ccl.channel+1, cclv.ccl.in.Number()+1, cclv.ccl.in.String()))
 	sb.WriteString("---------------------------------------------------------------\n")
 	var i uint8
 	for i = 0; i < 128; i++ {
@@ -140,7 +140,7 @@ func (cclv *ControlChangeListenerView) startInput() error {
 			cclv.inputBuffer = ""
 			switch inputBuffer {
 			case "q", "quit":
-				cclv.close()
+				cclv.Stop()
 				return nil
 			case "s", "save":
 				cclv.saveFile()
@@ -160,7 +160,7 @@ func (cclv *ControlChangeListenerView) startInput() error {
 	}
 }
 
-func (cclv *ControlChangeListenerView) close() {
+func (cclv *ControlChangeListenerView) Stop() {
 	cclv.log("Exiting")
 	if err := cclv.ccl.Close(); err != nil {
 		cclv.log("Error closing MIDI listener: %s", err)
