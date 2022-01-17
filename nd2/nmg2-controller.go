@@ -6,6 +6,7 @@ import (
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/reader"
+	"mvw.org/cctools/nmg2"
 	"mvw.org/cctools/util"
 )
 
@@ -43,22 +44,14 @@ const ProgramUpdateController = 0 // TBA
 
 type NmG2Controller struct {
 	Nd2Connection  *Nd2Connection
-	NmG2Connection *util.MidiReaderWriter
-	NmG2Config     *NmG2Config
+	NmG2Connection *nmg2.NmG2Connection
 	Nd2Program     map[uint8]map[uint8]uint8
 	nd2Voice       uint8
 	shutdownChan   chan interface{}
 }
 
-type NmG2Config struct {
-	InPort       uint  `yaml:"in_port"`
-	OutPort      uint  `yaml:"out_port"`
-	BaseMidiChan uint8 `yaml:"base_midi_channel"`
-}
-
-func NewNmG2Connection(nd2Config *Nd2ConnectionConfig, nmG2Config *NmG2Config) (*NmG2Controller, error) {
+func NewNmG2Connection(nd2Config *Nd2ConnectionConfig, nmG2Config *nmg2.NmG2ConnectionConfig) (*NmG2Controller, error) {
 	cont := &NmG2Controller{
-		NmG2Config:   nmG2Config,
 		nd2Voice:     0,
 		shutdownChan: make(chan interface{}, 1),
 	}
@@ -69,14 +62,11 @@ func NewNmG2Connection(nd2Config *Nd2ConnectionConfig, nmG2Config *NmG2Config) (
 	}
 	cont.Nd2Connection = nd2Conn
 
-	nmG2Conn, err := util.NewMidiReaderWriter(nmG2Config.InPort, nmG2Config.OutPort, cont.ProcessNmG2Msg)
+	nmG2Conn, err := nmg2.NewNmG2Connection(nmG2Config)
 	if err != nil {
 		return nil, err
 	}
 	cont.NmG2Connection = nmG2Conn
-
-	fmt.Println("Listening to G2")
-	cont.NmG2Connection.PrintPorts()
 
 	// set to voice 0
 	if err := cont.Nd2Connection.SendVoiceFocusChange(0); err != nil {
@@ -101,9 +91,7 @@ func (cont *NmG2Controller) Run() (errVal error) {
 		if err := cont.Nd2Connection.Close(); err != nil {
 			errVal = err
 		}
-		if err := cont.NmG2Connection.Close(); err != nil {
-			errVal = err
-		}
+		cont.NmG2Connection.Close()
 	}()
 	<-cont.shutdownChan
 	return nil
@@ -234,7 +222,7 @@ func (cont *NmG2Controller) GetNd2Program() error {
 func (cont *NmG2Controller) UpdateNmG2() error {
 	for controller, value := range cont.Nd2Program[cont.nd2Voice] {
 		for _, controllerValue := range cont.Nd2ToNg2(controller, value) { // map to ng2 values
-			if err := cont.NmG2Connection.ControlChange(cont.NmG2Config.BaseMidiChan, controllerValue.Controller, controllerValue.Value); err != nil {
+			if err := cont.NmG2Connection.SendControlChange(controllerValue.Controller, controllerValue.Value); err != nil {
 				return err
 			}
 		}

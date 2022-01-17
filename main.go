@@ -12,6 +12,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 	"mvw.org/cctools/nd2"
+	"mvw.org/cctools/nmg2"
 	"mvw.org/cctools/nr2x"
 	"mvw.org/cctools/util"
 )
@@ -19,7 +20,7 @@ import (
 type DefaultFlags struct {
 	Nr2x *nr2x.Nr2xConnectionConfig `yaml:"nr2x"`
 	Nd2  *nd2.Nd2ConnectionConfig   `yaml:"nd2"`
-	NmG2 *nd2.NmG2Config            `yaml:"nmg2"`
+	NmG2 *nmg2.NmG2ConnectionConfig `yaml:"nmg2"`
 }
 
 func (def DefaultFlags) SetZeroIndexing() {
@@ -35,9 +36,12 @@ func (def DefaultFlags) SetZeroIndexing() {
 	def.Nd2.InPort--
 	def.Nd2.OutPort--
 
-	def.NmG2.BaseMidiChan--
+	def.NmG2.GlobalMidiChan--
 	def.NmG2.InPort--
 	def.NmG2.OutPort--
+	for v, c := range def.NmG2.VoiceChannelMap {
+		def.NmG2.VoiceChannelMap[v] = c - 1
+	}
 }
 
 //go:embed defaults.yaml
@@ -54,6 +58,8 @@ const CommandNd2Get = "nd2-get"
 const CommandNd2Decode = "nd2-decode"
 const CommandNd2Test = "nd2-test"
 const CommandNd2Nmg2 = "nd2-nmg2"
+const CommandNG2Get = "nmg2-get"
+
 const CommandPrintDefaults = "print-defaults"
 
 func init() {
@@ -92,6 +98,8 @@ func main() {
 		RunNd2Test()
 	case CommandNd2Nmg2:
 		RunNd2NmG2()
+	case CommandNG2Get:
+		RunNG2Get()
 	case CommandPrintDefaults:
 		PrintDefaults()
 	default:
@@ -201,11 +209,27 @@ func RunNd2NmG2() {
 	ExitOnErr(nmg2Conn.Run())
 }
 
+func RunNG2Get() {
+	SetNmG2Flags()
+	ParseFlagsWithPositionalArg("output-file")
+	filename := flag.Args()[0]
+
+	Defaults.SetZeroIndexing()
+	ExitOnErr(nmg2.GetVariations(Defaults.NmG2, filename))
+}
+
 func SetNr2xFlags() {
 	flag.UintVar(&Defaults.Nr2x.InPort, "i", Defaults.Nr2x.InPort, "Nord Rack 2X MIDI in port")
 	flag.UintVar(&Defaults.Nr2x.OutPort, "o", Defaults.Nr2x.OutPort, "Nord Rack 2X MIDI out port")
 	flag.StringVar(&Defaults.Nr2x.Voice, "v", Defaults.Nr2x.Voice, "Nord Rack 2X voice/slot [A, B, C, D]")
 	flag.Uint8Var(&Defaults.Nr2x.GlobalMidiChan, "g", Defaults.Nr2x.GlobalMidiChan, "Nord Rack 2X Global MIDI channel")
+}
+
+func SetNmG2Flags() {
+	flag.UintVar(&Defaults.NmG2.InPort, "i", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
+	flag.UintVar(&Defaults.NmG2.OutPort, "o", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
+	flag.StringVar(&Defaults.NmG2.Voice, "v", Defaults.NmG2.Voice, "Nord G2 voice/slot [A, B, C, D]")
+	flag.Uint8Var(&Defaults.NmG2.GlobalMidiChan, "g", Defaults.NmG2.GlobalMidiChan, "Nord G2 Global MIDI channel")
 }
 
 func SetNd2Flags() {
