@@ -16,4 +16,10 @@ nd2:
 nmg2:
   in_port: 1
   out_port: 1
-  base_midi_channel: 1
+  global_midi_channel: 16
+  voice_channel_map:
+    A: 1
+    B: 2
+    C: 3
+    D: 4
+  voice: A
