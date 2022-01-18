@@ -50,8 +50,6 @@ func NewNmG2Connection(conf *NmG2ConnectionConfig) (c *NmG2Connection, errVal er
 	}
 	conn.readerWriter = rw
 
-	conn.readerWriter.PrintPorts()
-
 	return conn, nil
 }
 
@@ -76,7 +74,6 @@ func (conn *NmG2Connection) GetControllerValues() ([]*util.ControllerValue, erro
 		case <-time.After(AcrWaitTime):
 			return controllerValues, nil
 		case cvMsg := <-conn.responseChan:
-
 			controllerValues = append(controllerValues, &util.ControllerValue{
 				Controller: cvMsg.Controller(),
 				Value:      cvMsg.Value(),
@@ -87,6 +84,33 @@ func (conn *NmG2Connection) GetControllerValues() ([]*util.ControllerValue, erro
 
 func (conn *NmG2Connection) SetVariation(v uint8) error {
 	return conn.SendControlChange(70, v)
+}
+
+func (conn *NmG2Connection) GetVariations() ([][]*util.ControllerValue, error) {
+	variations := make([][]*util.ControllerValue, 8)
+	var v uint8
+	for v = 0; v < 8; v++ {
+		if err := conn.SetVariation(v); err != nil {
+			return nil, err
+		}
+		cvs, err := conn.GetControllerValues()
+		if err != nil {
+			return nil, err
+		}
+		variations[v] = cvs
+	}
+	return variations, nil
+}
+
+func (conn *NmG2Connection) ListenForControlChanges(f func(*channel.ControlChange)) {
+	for {
+		select {
+		case <-conn.shutdownChan:
+			return
+		case cvMsg := <-conn.responseChan:
+			f(cvMsg)
+		}
+	}
 }
 
 func (conn *NmG2Connection) Close() {
@@ -100,27 +124,20 @@ func GetVariations(conf *NmG2ConnectionConfig, filename string) error {
 	}
 	defer conn.Close()
 
-	variations := []*util.VoiceControllerValue{}
+	variations, err := conn.GetVariations()
+	if err != nil {
+		return err
+	}
 
+	vlist := []*util.VoiceControllerValue{}
 	var v uint8
 	for v = 0; v < 8; v++ {
-		if err := conn.SetVariation(v); err != nil {
-			return err
-		}
-		cvs, err := conn.GetControllerValues()
-		if err != nil {
-			return err
-		}
-		for _, cv := range cvs {
-			variations = append(variations, &util.VoiceControllerValue{
-				Voice:      v,
-				Controller: cv.Controller,
-				Value:      cv.Value,
-			})
+		for _, vc := range variations[v] {
+			vlist = append(vlist, &util.VoiceControllerValue{Voice: v, Controller: vc.Controller, Value: vc.Value})
 		}
 	}
 
-	filename, err = util.SaveVoiceControllerValues(filename, variations)
+	filename, err = util.SaveVoiceControllerValues(filename, vlist)
 	if err != nil {
 		return err
 	}

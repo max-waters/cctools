@@ -58,7 +58,8 @@ const CommandNd2Get = "nd2-get"
 const CommandNd2Decode = "nd2-decode"
 const CommandNd2Test = "nd2-test"
 const CommandNd2Nmg2 = "nd2-nmg2"
-const CommandNG2Get = "nmg2-get"
+const CommandNmG2Get = "nmg2-get"
+const CommandNmG2Morph = "nmg2-morph"
 
 const CommandPrintDefaults = "print-defaults"
 
@@ -98,7 +99,9 @@ func main() {
 		RunNd2Test()
 	case CommandNd2Nmg2:
 		RunNd2NmG2()
-	case CommandNG2Get:
+	case CommandNmG2Morph:
+		RunNG2Morph()
+	case CommandNmG2Get:
 		RunNG2Get()
 	case CommandPrintDefaults:
 		PrintDefaults()
@@ -108,9 +111,9 @@ func main() {
 }
 
 func PrintCommandsAndExit(cause string) {
-	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
+	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
 		CommandList, CommandLog, CommandListen, CommandNr2xGet, CommandNr2xSet,
-		CommandNd2Get, CommandNd2Set, CommandNG2Get, CommandNd2Nmg2, CommandNd2Decode, CommandNd2Test)
+		CommandNd2Get, CommandNd2Set, CommandNmG2Get, CommandNmG2Morph, CommandNd2Nmg2, CommandNd2Decode, CommandNd2Test)
 	os.Exit(1)
 }
 
@@ -216,6 +219,18 @@ func RunNG2Get() {
 
 	Defaults.SetZeroIndexing()
 	ExitOnErr(nmg2.GetVariations(Defaults.NmG2, filename))
+}
+
+func RunNG2Morph() {
+	SetNmG2Flags()
+	var t, m uint8
+	flag.Uint8Var(&t, "t", 127, "Nord G2 target controller num")
+	flag.Uint8Var(&m, "m", 128, "Nord G2 morpher controller num")
+
+	morpher, err := nmg2.NewNmG2Morpher(Defaults.NmG2, t, m)
+	ExitOnErr(err)
+	CallOnShutdownSignal(morpher.Close)
+	ExitOnErr(morpher.Start())
 }
 
 func SetNr2xFlags() {
