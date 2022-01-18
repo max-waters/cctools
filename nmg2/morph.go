@@ -38,9 +38,11 @@ func (m *NmG2Morpher) Start() error {
 	}
 	for i, variation := range variations {
 		for _, cv := range variation {
-			if cv.Controller != m.targetController && cv.Controller != m.morph.Controller {
-				m.variations[i][cv.Controller] = cv.Value
+			// do not not morph the target/morph controllers
+			if cv.Controller == m.targetController || cv.Controller == m.morph.Controller {
+				continue
 			}
+			m.variations[i][cv.Controller] = cv.Value
 		}
 	}
 
@@ -59,18 +61,18 @@ func (m *NmG2Morpher) Start() error {
 		return err
 	}
 
-	// blocks until m.conn.Close() is called
-	m.conn.ListenForControlChanges(m.ProcessControlChange)
-
-	return nil
+	// blocks until m.conn.Close() is called or
+	// m.ProcessControlChange() returns an error
+	return m.conn.ListenForControlChanges(m.ProcessControlChange)
 }
 
-func (m *NmG2Morpher) ProcessControlChange(c *channel.ControlChange) {
+func (m *NmG2Morpher) ProcessControlChange(c *channel.ControlChange) error {
 	if c.Controller() == m.targetController {
-		m.SetTarget(c.Value() / 16) // controller range divided equally into 8 regions
+		return m.SetTarget(c.Value() / 16) // controller range is divided equally into 8 regions
 	} else if c.Controller() == m.morph.Controller {
-		m.SetMorph(c.Value())
+		return m.SetMorph(c.Value())
 	}
+	return nil
 }
 
 func (m *NmG2Morpher) SetTarget(target uint8) error {

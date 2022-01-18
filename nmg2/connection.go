@@ -102,13 +102,15 @@ func (conn *NmG2Connection) GetVariations() ([][]*util.ControllerValue, error) {
 	return variations, nil
 }
 
-func (conn *NmG2Connection) ListenForControlChanges(f func(*channel.ControlChange)) {
+func (conn *NmG2Connection) ListenForControlChanges(f func(*channel.ControlChange) error) error {
 	for {
 		select {
 		case <-conn.shutdownChan:
-			return
+			return nil
 		case cvMsg := <-conn.responseChan:
-			f(cvMsg)
+			if err := f(cvMsg); err != nil {
+				return err
+			}
 		}
 	}
 }
