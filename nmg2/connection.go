@@ -11,6 +11,7 @@ import (
 	"mvw.org/cctools/util"
 )
 
+const VarChangeController uint8 = 70
 const AcrWaitTime = time.Millisecond * 500
 
 var VoiceIndexMap map[string]uint8 = map[string]uint8{
@@ -83,7 +84,7 @@ func (conn *NmG2Connection) GetControllerValues() ([]*util.ControllerValue, erro
 }
 
 func (conn *NmG2Connection) SetVariation(v uint8) error {
-	return conn.SendControlChange(70, v)
+	return conn.SendControlChange(70, v*16) // 0-15, 16-31 etc
 }
 
 func (conn *NmG2Connection) GetVariations() ([][]*util.ControllerValue, error) {
