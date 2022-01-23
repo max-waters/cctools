@@ -14,29 +14,31 @@ var targetMap map[uint8]uint8 = map[uint8]uint8{0: 0, 19: 1, 37: 2, 55: 3, 73: 4
 const sendPeriod = 500 * time.Millisecond
 
 type NmG2Morpher struct {
-	conn             *NmG2Connection
-	targetController uint8
-	morph            *util.ControllerValue
-	variations       []map[uint8]uint8 // variation -> controller -? value
-	interpolations   []map[uint8]uint8 // morph -> controller -> value
-	shutdownChan     chan interface{}
-	lock             sync.Mutex
+	conn           *NmG2Connection
+	leftTarget     *util.ControllerValue
+	rightTarget    *util.ControllerValue
+	morph          *util.ControllerValue
+	variations     []map[uint8]uint8 // variation -> controller -? value
+	interpolations []map[uint8]uint8 // morph -> controller -> value
+	shutdownChan   chan interface{}
+	lock           sync.Mutex
 }
 
-func NewNmG2Morpher(connConfig *NmG2ConnectionConfig, targetController, morphController uint8) (*NmG2Morpher, error) {
+func NewNmG2Morpher(connConfig *NmG2ConnectionConfig, leftTargetController, rightTargetController, morphController uint8) (*NmG2Morpher, error) {
 	conn, err := NewNmG2Connection(connConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &NmG2Morpher{
-		conn:             conn,
-		targetController: targetController,
-		morph:            &util.ControllerValue{Controller: morphController, Value: 0},
-		interpolations:   make([]map[uint8]uint8, 128),
-		variations:       make([]map[uint8]uint8, 8),
-		shutdownChan:     make(chan interface{}, 1),
-		lock:             sync.Mutex{},
+		conn:           conn,
+		leftTarget:     &util.ControllerValue{Controller: leftTargetController},
+		rightTarget:    &util.ControllerValue{Controller: rightTargetController},
+		morph:          &util.ControllerValue{Controller: morphController},
+		interpolations: make([]map[uint8]uint8, 128),
+		variations:     make([]map[uint8]uint8, 8),
+		shutdownChan:   make(chan interface{}, 1),
+		lock:           sync.Mutex{},
 	}
 	for i := 0; i < len(m.interpolations); i++ {
 		m.interpolations[i] = map[uint8]uint8{}
@@ -54,13 +56,20 @@ func (m *NmG2Morpher) Start() error {
 	if err != nil {
 		return err
 	}
-	var currentTarget uint8
+
 	for i, variation := range variations {
 		for _, cv := range variation {
 			// do not not morph the target/morph/variation controllers
-			if cv.Controller == m.targetController {
+			// also get the current value for these controllers in variation 0
+			if cv.Controller == m.leftTarget.Controller {
 				if i == 0 {
-					currentTarget = cv.Value
+					m.leftTarget.Value = cv.Value
+				}
+				continue
+			}
+			if cv.Controller == m.rightTarget.Controller {
+				if i == 0 {
+					m.rightTarget.Value = cv.Value
 				}
 				continue
 			}
@@ -83,10 +92,8 @@ func (m *NmG2Morpher) Start() error {
 		return err
 	}
 
-	// compute interpolation to target value in variation 0, set morph to 0
-	if err := m.SetTarget(targetMap[currentTarget]); err != nil {
-		return err
-	}
+	// compute initial interpolations
+	m.InitInterpolations()
 
 	// new thread
 	go func() {
@@ -113,7 +120,8 @@ func (m *NmG2Morpher) sendUpdate() error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	for c, v := range m.interpolations[m.morph.Value] {
-		if c == m.targetController || c == m.morph.Controller || c == VarChangeController {
+		if c == m.leftTarget.Controller || c == m.rightTarget.Controller ||
+			c == m.morph.Controller || c == VarChangeController {
 			panic(c)
 		}
 		if err := m.conn.SendControlChange(c, v); err != nil {
@@ -124,43 +132,63 @@ func (m *NmG2Morpher) sendUpdate() error {
 }
 
 func (m *NmG2Morpher) ProcessControlChange(c *channel.ControlChange) error {
-	if c.Controller() == m.targetController {
-		// NB assumes that G2 only sends exact numbers -- 0, 19, 37 etc
-		return m.SetTarget(targetMap[c.Value()])
-	}
-	if c.Controller() == m.morph.Controller {
-		return m.SetMorph(c.Value())
+	if c.Controller() == m.leftTarget.Controller {
+		m.leftTarget.Value = c.Value()
+		m.SetInterpolations()
+	} else if c.Controller() == m.rightTarget.Controller {
+		m.rightTarget.Value = c.Value()
+		m.SetInterpolations()
+	} else if c.Controller() == m.morph.Controller {
+		m.morph.Value = c.Value()
 	}
 	return nil
 }
 
-func (m *NmG2Morpher) SetTarget(target uint8) error {
+func (m *NmG2Morpher) InitInterpolations() {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	fmt.Printf("target: %d\n", target)
-	// calculate interpolations from current value to target
-	for c, v := range m.variations[target] {
-		current := m.interpolations[m.morph.Value][c]
-		stepDiff := float64(v-current) / 128
+	// NB assumes that G2 only sends exact numbers -- 0, 19, 37 etc
+	leftTarget := targetMap[m.leftTarget.Value]
+	rightTarget := targetMap[m.rightTarget.Value]
+
+	// calculate interpolations from left target to right target
+	for c, leftTargetVal := range m.variations[leftTarget] {
+		rightTargetVal := m.variations[rightTarget][c]
+		stepDiff := float64(rightTargetVal-leftTargetVal) / 128
 		for i := 0; i < 128; i++ {
-			m.interpolations[i][c] = current + uint8(stepDiff*float64(i))
+			m.interpolations[i][c] = leftTargetVal + uint8(stepDiff*float64(i))
+		}
+	}
+}
+
+func (m *NmG2Morpher) SetInterpolations() {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// NB assumes that G2 only sends exact numbers -- 0, 19, 37 etc
+	leftTarget := targetMap[m.leftTarget.Value]
+	rightTarget := targetMap[m.rightTarget.Value]
+
+	fmt.Printf("targets: %d<->%d\n", leftTarget, rightTarget)
+
+	// calculate interpolations from left target to current value
+	for c, v := range m.variations[leftTarget] {
+		current := m.interpolations[m.morph.Value][c]
+		stepDiff := float64(current-v) / float64(m.morph.Value)
+		for i := 0; i < int(m.morph.Value); i++ {
+			m.interpolations[i][c] = v + uint8(stepDiff*float64(i))
 		}
 	}
 
-	//set morph back to zero
-	m.morph.Value = 0
-	if err := m.conn.SendControlChange(m.morph.Controller, 0); err != nil {
-		return err
+	// calculate interpolations from current value to right target
+	for c, v := range m.variations[rightTarget] {
+		current := m.interpolations[m.morph.Value][c]
+		stepDiff := float64(v-current) / float64(128-m.morph.Value)
+		for i := (m.morph.Value + 1); i < 128; i++ {
+			m.interpolations[i][c] = current + uint8(stepDiff*float64(i))
+		}
 	}
-
-	return nil
-}
-
-func (m *NmG2Morpher) SetMorph(morphValue uint8) error {
-	fmt.Printf("morph: %d\n", morphValue)
-	m.morph.Value = morphValue
-	return nil
 }
 
 func (m *NmG2Morpher) Close() {

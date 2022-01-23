@@ -223,13 +223,14 @@ func RunNG2Get() {
 
 func RunNG2Morph() {
 	SetNmG2Flags()
-	var t, m uint8
-	flag.Uint8Var(&t, "t", 118, "Nord G2 target controller num")
+	var l, r, m uint8
+	flag.Uint8Var(&l, "l", 117, "Nord G2 target controller num")
+	flag.Uint8Var(&r, "r", 118, "Nord G2 target controller num")
 	flag.Uint8Var(&m, "m", 119, "Nord G2 morpher controller num")
 
 	Defaults.SetZeroIndexing()
 
-	morpher, err := nmg2.NewNmG2Morpher(Defaults.NmG2, t, m)
+	morpher, err := nmg2.NewNmG2Morpher(Defaults.NmG2, l, r, m)
 	ExitOnErr(err)
 	CallOnShutdownSignal(morpher.Close)
 	ExitOnErr(morpher.Start())
