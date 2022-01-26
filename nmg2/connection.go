@@ -14,6 +14,7 @@ import (
 const VarChangeController uint8 = 70
 const AcrWaitTime = time.Millisecond * 500
 
+// NB not the same as the voice's channel
 var VoiceIndexMap map[string]uint8 = map[string]uint8{
 	"A": 0, "B": 1, "C": 2, "D": 3,
 }
@@ -27,6 +28,15 @@ type NmG2ConnectionConfig struct {
 	VoiceChannelMap map[string]uint8 `yaml:"voice_channel_map"`
 }
 
+func (conf *NmG2ConnectionConfig) setVoiceMidiChan() error {
+	channel, ok := conf.VoiceChannelMap[conf.Voice]
+	if !ok {
+		return errors.Errorf("no channel configured for voice '%s'", conf.Voice)
+	}
+	conf.voiceMidiChan = channel
+	return nil
+}
+
 type NmG2Connection struct {
 	Config       *NmG2ConnectionConfig
 	readerWriter *util.MidiReaderWriter
@@ -35,6 +45,10 @@ type NmG2Connection struct {
 }
 
 func NewNmG2Connection(conf *NmG2ConnectionConfig) (c *NmG2Connection, errVal error) {
+	if err := conf.setVoiceMidiChan(); err != nil {
+		return nil, err
+	}
+
 	conn := &NmG2Connection{
 		Config:       conf,
 		responseChan: make(chan *channel.ControlChange, 128), // won't be more that 128?
@@ -63,7 +77,7 @@ func (conn *NmG2Connection) SendControlChange(controller, value uint8) error {
 
 func (conn *NmG2Connection) GetControllerValues() ([]*util.ControllerValue, error) {
 	acrSysEx := []byte{51, 127, 10, 64, VoiceIndexMap[conn.Config.Voice]}
-	if err := conn.readerWriter.SysEx(acrSysEx); err != nil {
+	if err := conn.readerWriter.SysEx(conn.Config.voiceMidiChan, acrSysEx); err != nil {
 		return nil, errors.Wrap(err, "error sending all controllers request")
 	}
 
@@ -75,10 +89,12 @@ func (conn *NmG2Connection) GetControllerValues() ([]*util.ControllerValue, erro
 		case <-time.After(AcrWaitTime):
 			return controllerValues, nil
 		case cvMsg := <-conn.responseChan:
-			controllerValues = append(controllerValues, &util.ControllerValue{
-				Controller: cvMsg.Controller(),
-				Value:      cvMsg.Value(),
-			})
+			if cvMsg.Channel() == conn.Config.voiceMidiChan {
+				controllerValues = append(controllerValues, &util.ControllerValue{
+					Controller: cvMsg.Controller(),
+					Value:      cvMsg.Value(),
+				})
+			}
 		}
 	}
 }
@@ -109,8 +125,10 @@ func (conn *NmG2Connection) ListenForControlChanges(f func(*channel.ControlChang
 		case <-conn.shutdownChan:
 			return nil
 		case cvMsg := <-conn.responseChan:
-			if err := f(cvMsg); err != nil {
-				return err
+			if cvMsg.Channel() == conn.Config.voiceMidiChan {
+				if err := f(cvMsg); err != nil {
+					return err
+				}
 			}
 		}
 	}

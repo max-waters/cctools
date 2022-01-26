@@ -74,7 +74,7 @@ func (conn *Nr2xConnection) SendControlChange(controller, value uint8) error {
 
 func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, error) {
 	acrSysEx := []byte{51, conn.Config.GlobalMidiChan, 4, 28, conn.Config.voiceMidiChan}
-	if err := conn.readerWriter.SysEx(acrSysEx); err != nil {
+	if err := conn.readerWriter.SysEx(conn.Config.voiceMidiChan, acrSysEx); err != nil {
 		return nil, errors.Wrap(err, "error sending all controllers request")
 	}
 

@@ -265,12 +265,13 @@ func (rw *MidiReaderWriter) Close() error {
 	return rw.closeFunc()
 }
 
-func (rw *MidiReaderWriter) ControlChange(channel, controller uint8, value uint8) error {
+func (rw *MidiReaderWriter) ControlChange(channel, controller, value uint8) error {
 	rw.Writer.SetChannel(channel)
 	return writer.ControlChange(rw.Writer, controller, value)
 }
 
-func (rw *MidiReaderWriter) SysEx(data []byte) error {
+func (rw *MidiReaderWriter) SysEx(channel uint8, data []byte) error {
+	rw.Writer.SetChannel(channel)
 	return writer.SysEx(rw.Writer, data)
 }
 

@@ -158,7 +158,7 @@ func NewNd2Connection(config *Nd2ConnectionConfig) (nd2c *Nd2Connection, errVal 
 
 func (conn *Nd2Connection) GetProgram() (Nd2ProgramSysex, error) {
 	sysExData := []byte{51, 127, 127, 8, 3, 5, 0, 19}
-	if err := conn.readerWriter.SysEx(sysExData); err != nil {
+	if err := conn.readerWriter.SysEx(conn.Config.GlobalMidiChannel, sysExData); err != nil {
 		return nil, errors.Wrap(err, "error sending SysEx message")
 	}
 	time.Sleep(ConnectionSleepTime)
@@ -170,7 +170,7 @@ func (conn *Nd2Connection) GetProgram() (Nd2ProgramSysex, error) {
 }
 
 func (conn *Nd2Connection) Handshake() error {
-	if err := conn.readerWriter.SysEx(HandshakeRequest); err != nil {
+	if err := conn.readerWriter.SysEx(conn.Config.GlobalMidiChannel, HandshakeRequest); err != nil {
 		return errors.Wrap(err, "error sending SysEx message")
 	}
 

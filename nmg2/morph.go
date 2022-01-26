@@ -139,6 +139,7 @@ func (m *NmG2Morpher) ProcessControlChange(c *channel.ControlChange) error {
 		m.rightTarget.Value = c.Value()
 		m.SetInterpolations()
 	} else if c.Controller() == m.morph.Controller {
+		fmt.Printf("Morph: %d\n", c.Value())
 		m.morph.Value = c.Value()
 	}
 	return nil
@@ -169,9 +170,7 @@ func (m *NmG2Morpher) SetInterpolations() {
 	// NB assumes that G2 only sends exact numbers -- 0, 19, 37 etc
 	leftTarget := targetMap[m.leftTarget.Value]
 	rightTarget := targetMap[m.rightTarget.Value]
-
-	fmt.Printf("targets: %d<->%d\n", leftTarget, rightTarget)
-
+	fmt.Printf("Target: %d<->%d\n", leftTarget, rightTarget)
 	// calculate interpolations from left target to current value
 	for c, v := range m.variations[leftTarget] {
 		current := m.interpolations[m.morph.Value][c]

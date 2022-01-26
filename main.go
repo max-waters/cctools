@@ -118,6 +118,7 @@ func PrintCommandsAndExit(cause string) {
 }
 
 func ListPorts() {
+	flag.Parse()
 	ExitOnErr(util.ListPorts())
 }
 
@@ -227,6 +228,7 @@ func RunNG2Morph() {
 	flag.Uint8Var(&l, "l", 117, "Nord G2 target controller num")
 	flag.Uint8Var(&r, "r", 118, "Nord G2 target controller num")
 	flag.Uint8Var(&m, "m", 119, "Nord G2 morpher controller num")
+	flag.Parse()
 
 	Defaults.SetZeroIndexing()
 
