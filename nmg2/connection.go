@@ -1,7 +1,6 @@
 package nmg2
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -136,32 +135,4 @@ func (conn *NmG2Connection) ListenForControlChanges(f func(*channel.ControlChang
 
 func (conn *NmG2Connection) Close() {
 	conn.shutdownChan <- nil
-}
-
-func GetVariations(conf *NmG2ConnectionConfig, filename string) error {
-	conn, err := NewNmG2Connection(conf)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	variations, err := conn.GetVariations()
-	if err != nil {
-		return err
-	}
-
-	vlist := []*util.VoiceControllerValue{}
-	var v uint8
-	for v = 0; v < 8; v++ {
-		for _, vc := range variations[v] {
-			vlist = append(vlist, &util.VoiceControllerValue{Voice: v, Controller: vc.Controller, Value: vc.Value})
-		}
-	}
-
-	filename, err = util.SaveVoiceControllerValues(filename, vlist)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Saved NmG2 variations for voice %s to %s\n", conf.Voice, filename)
-	return nil
 }

@@ -79,16 +79,20 @@ func main() {
 	os.Args = os.Args[1:]
 
 	switch command {
+	case CommandPrintDefaults:
+		PrintDefaults()
 	case CommandList:
 		ListPorts()
 	case CommandLog:
 		RunMidiLogger()
 	case CommandListen:
 		RunControlChangeListener()
+	// Nord Rack 2X
 	case CommandNr2xGet:
 		RunNr2xGet()
 	case CommandNr2xSet:
 		RunNr2xSet()
+	// Nord Drum 2
 	case CommandNd2Get:
 		RunNd2Get()
 	case CommandNd2Set:
@@ -99,12 +103,11 @@ func main() {
 		RunNd2Test()
 	case CommandNd2Nmg2:
 		RunNd2NmG2()
+	// Nord Mdular G2
 	case CommandNmG2Morph:
-		RunNG2Morph()
+		RunNmG2Morph()
 	case CommandNmG2Get:
-		RunNG2Get()
-	case CommandPrintDefaults:
-		PrintDefaults()
+		RunNmG2Get()
 	default:
 		PrintCommandsAndExit(fmt.Sprintf("Unknown command: '%s'", command))
 	}
@@ -213,16 +216,18 @@ func RunNd2NmG2() {
 	ExitOnErr(nmg2Conn.Run())
 }
 
-func RunNG2Get() {
+func RunNmG2Get() {
 	SetNmG2Flags()
+	maxMspFormat := false
+	flag.BoolVarP(&maxMspFormat, "max", "m", false, "output in Max/MSP coll format")
 	ParseFlagsWithPositionalArg("output-file")
 	filename := flag.Args()[0]
 
 	Defaults.SetZeroIndexing()
-	ExitOnErr(nmg2.GetVariations(Defaults.NmG2, filename))
+	ExitOnErr(nmg2.GetVariations(Defaults.NmG2, filename, maxMspFormat))
 }
 
-func RunNG2Morph() {
+func RunNmG2Morph() {
 	SetNmG2Flags()
 	var l, r, m uint8
 	flag.Uint8Var(&l, "l", 117, "Nord G2 target controller num")

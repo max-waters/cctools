@@ -1,6 +1,6 @@
 nr2x:
-  in_port: 4
-  out_port: 4
+  in_port: 1
+  out_port: 1
   global_midi_channel: 16
   voice_channel_map:
     A: 1
@@ -9,13 +9,13 @@ nr2x:
     D: 4
   voice: A
 nd2:
-  in_port: 2
-  out_port: 2
+  in_port: 3
+  out_port: 3
   base_midi_channel: 9
   global_midi_channel: 1
 nmg2:
-  in_port: 1
-  out_port: 1
+  in_port: 4
+  out_port: 4
   global_midi_channel: 16
   voice_channel_map:
     A: 1

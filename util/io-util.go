@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -40,22 +41,119 @@ func UnmarshalCsv(filename string, dest interface{}) error {
 }
 
 func SaveVoiceControllerValues(filename string, data []*VoiceControllerValue) (string, error) {
-	filename, err := MarshalCsv(filename, &data)
+	filename, err := WriteDataToFile(filename, data, gocsv.Marshal)
 	if err != nil {
-		return "", errors.Wrap(err, "cannot save controller values")
+		return "", errors.Wrap(err, "cannot save voice controller values")
 	}
 	return filename, nil
+}
+
+func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerValue) (string, error) {
+	voiceSet := map[uint8]interface{}{}
+	controllerSet := map[uint8]interface{}{}
+
+	// put data into map voice -> controller -> value
+	dataMap := map[uint8]map[uint8]uint8{}
+	for _, d := range data {
+		voiceSet[d.Voice] = nil
+		controllerSet[d.Controller] = nil
+
+		controllerMap, ok := dataMap[d.Voice]
+		if !ok {
+			controllerMap = map[uint8]uint8{}
+			dataMap[d.Voice] = controllerMap
+		}
+
+		controllerMap[d.Controller] = d.Value
+	}
+
+	// check all voices have the same number of controllers
+	size := -1
+	for v, controllerMap := range dataMap {
+		if size == -1 {
+			size = len(controllerMap)
+		} else if len(controllerMap) != size {
+			return "", errors.Errorf("Voice %d has %d controller values, expected %d", v, len(controllerMap), size)
+		}
+	}
+
+	// get unique voices and controllers
+	voices := OrderSet(voiceSet)
+	controllers := OrderSet(controllerSet)
+
+	// remove controllers that do not vary
+	filteredControllers := []uint8{}
+	for _, controller := range controllers {
+		val := -1
+		diff := false
+		for _, voice := range voices {
+			if val == -1 {
+				val = int(dataMap[voice][controller])
+			} else if int(dataMap[voice][controller]) != val {
+				diff = true
+				break
+			}
+		}
+
+		if diff {
+			filteredControllers = append(filteredControllers, controller)
+		}
+	}
+	controllers = filteredControllers
+
+	// create table with headers row
+	dataTable := make([][]interface{}, len(voices)+1)
+	dataTable[0] = make([]interface{}, len(controllers)+1)
+	dataTable[0][0] = "clr"
+	for i, controller := range controllers {
+		dataTable[0][i+1] = controller
+	}
+
+	for i, voice := range voices {
+		dataTable[i+1] = make([]interface{}, len(controllers)+1)
+		dataTable[i+1][0] = voice
+
+		for j, controller := range controllers {
+			dataTable[i+1][j+1] = dataMap[voice][controller]
+		}
+	}
+
+	filename, err := WriteDataToFile(filename, dataTable, WriteMaxMspCollFormat)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot save voice controller values in Max/MSP format")
+	}
+	return filename, nil
+}
+
+func WriteMaxMspCollFormat(in interface{}, out io.Writer) error {
+	dataTable, ok := in.([][]interface{})
+	if !ok {
+		return errors.Errorf("must be of type [][]interface{}, not %T", in)
+	}
+
+	for _, row := range dataTable {
+		for j, val := range row {
+			out.Write([]byte(fmt.Sprintf("%v", val)))
+			if j == 0 {
+				out.Write([]byte(","))
+			}
+			out.Write([]byte(" "))
+		}
+		out.Write([]byte(";\n"))
+	}
+
+	return nil
 }
 
 func SaveControllerValues(filename string, data []*ControllerValue) (string, error) {
-	filename, err := MarshalCsv(filename, &data)
+	filename, err := WriteDataToFile(filename, &data, gocsv.Marshal)
 	if err != nil {
 		return "", errors.Wrap(err, "cannot save controller values")
 	}
 	return filename, nil
 }
 
-func MarshalCsv(filename string, data interface{}) (string, error) {
+func WriteDataToFile(filename string, data interface{}, writeFunc func(in interface{}, out io.Writer) error) (string, error) {
 	filename = FormatFileName(filename)
 	if err := BackupIfExists(filename); err != nil {
 		return "", errors.Wrap(err, "cannot back up file")
@@ -74,7 +172,7 @@ func MarshalCsv(filename string, data interface{}) (string, error) {
 	defer f.Close()
 
 	// write data
-	return filename, gocsv.Marshal(data, f)
+	return filename, writeFunc(data, f)
 }
 
 func BackupIfExists(filename string) error {
@@ -156,4 +254,15 @@ func GetNumberedFileRegex(filename, extension string) (*regexp.Regexp, error) {
 	sanitisedFileName := regexp.QuoteMeta(filename)
 	sanitisedExt := regexp.QuoteMeta(extension)
 	return regexp.Compile(fmt.Sprintf("^%s-([\\d]+)%s$", sanitisedFileName, sanitisedExt))
+}
+
+func OrderSet(set map[uint8]interface{}) []uint8 {
+	ordered := make([]uint8, len(set))
+	i := 0
+	for n := range set {
+		ordered[i] = n
+		i++
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+	return ordered
 }
