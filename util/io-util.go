@@ -52,22 +52,22 @@ func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerV
 	voiceSet := map[uint8]interface{}{}
 	controllerSet := map[uint8]interface{}{}
 
-	// put data into map voice -> controller -> value
+	// put data into map controller -> voice -> value
 	dataMap := map[uint8]map[uint8]uint8{}
 	for _, d := range data {
 		voiceSet[d.Voice] = nil
 		controllerSet[d.Controller] = nil
 
-		controllerMap, ok := dataMap[d.Voice]
+		controllerMap, ok := dataMap[d.Controller]
 		if !ok {
 			controllerMap = map[uint8]uint8{}
-			dataMap[d.Voice] = controllerMap
+			dataMap[d.Controller] = controllerMap
 		}
 
-		controllerMap[d.Controller] = d.Value
+		controllerMap[d.Voice] = d.Value
 	}
 
-	// check all voices have the same number of controllers
+	// check all controllers have the same number of voices
 	size := -1
 	for v, controllerMap := range dataMap {
 		if size == -1 {
@@ -88,8 +88,8 @@ func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerV
 		diff := false
 		for _, voice := range voices {
 			if val == -1 {
-				val = int(dataMap[voice][controller])
-			} else if int(dataMap[voice][controller]) != val {
+				val = int(dataMap[controller][voice])
+			} else if int(dataMap[controller][voice]) != val {
 				diff = true
 				break
 			}
@@ -102,19 +102,15 @@ func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerV
 	controllers = filteredControllers
 
 	// create table with headers row
-	dataTable := make([][]interface{}, len(voices)+1)
-	dataTable[0] = make([]interface{}, len(controllers)+1)
-	dataTable[0][0] = "clr"
+	dataTable := make([][]interface{}, len(controllers))
+	dataTable[0] = make([]interface{}, len(voices)+1)
+
 	for i, controller := range controllers {
-		dataTable[0][i+1] = controller
-	}
+		dataTable[i] = make([]interface{}, len(voices)+1)
+		dataTable[i][0] = controller
 
-	for i, voice := range voices {
-		dataTable[i+1] = make([]interface{}, len(controllers)+1)
-		dataTable[i+1][0] = voice
-
-		for j, controller := range controllers {
-			dataTable[i+1][j+1] = dataMap[voice][controller]
+		for j, voice := range voices {
+			dataTable[i][j+1] = dataMap[controller][voice]
 		}
 	}
 
