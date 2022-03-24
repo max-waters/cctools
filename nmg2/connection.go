@@ -113,7 +113,15 @@ func (conn *NmG2Connection) GetVariations() ([][]*util.ControllerValue, error) {
 		if err != nil {
 			return nil, err
 		}
-		variations[v] = cvs
+		filteredCvs := []*util.ControllerValue{}
+		for _, cv := range cvs {
+			// ignore the variation change controller
+			if cv.Controller != VarChangeController {
+				filteredCvs = append(filteredCvs, cv)
+			}
+		}
+
+		variations[v] = filteredCvs
 	}
 	return variations, nil
 }
