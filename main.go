@@ -147,20 +147,24 @@ func RunControlChangeListener() {
 
 func RunNr2xGet() {
 	SetNr2xFlags()
+	var perc bool
+	flag.BoolVar(&perc, "p", false, "get a percussion kit")
 	ParseFlagsWithPositionalArg("output-file")
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
-	ExitOnErr(nr2x.GetProgram(Defaults.Nr2x, filename))
+	ExitOnErr(nr2x.GetProgram(Defaults.Nr2x, perc, filename))
 }
 
 func RunNr2xSet() {
 	SetNr2xFlags()
+	var perc bool
+	flag.BoolVar(&perc, "p", false, "set a percussion kit")
 	ParseFlagsWithPositionalArg("input-file")
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
-	ExitOnErr(nr2x.SetProgram(Defaults.Nr2x, filename))
+	ExitOnErr(nr2x.SetProgram(Defaults.Nr2x, perc, filename))
 }
 
 func RunNd2Get() {

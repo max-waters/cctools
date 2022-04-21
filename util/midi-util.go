@@ -275,6 +275,16 @@ func (rw *MidiReaderWriter) SysEx(channel uint8, data []byte) error {
 	return writer.SysEx(rw.Writer, data)
 }
 
+func (rw *MidiReaderWriter) NoteOn(channel, key, velocity uint8) error {
+	rw.Writer.SetChannel(channel)
+	return writer.NoteOn(rw.Writer, key, velocity)
+}
+
+func (rw *MidiReaderWriter) NoteOff(channel, key uint8) error {
+	rw.Writer.SetChannel(channel)
+	return writer.NoteOff(rw.Writer, key)
+}
+
 func (rw *MidiReaderWriter) PrintPorts() {
 	// add one for zero indexing
 	fmt.Printf("MIDI in port:  %d (%s)\n", rw.In.Number()+1, rw.In.String())

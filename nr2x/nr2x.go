@@ -72,6 +72,18 @@ func (conn *Nr2xConnection) SendControlChange(controller, value uint8) error {
 	return nil
 }
 
+func (conn *Nr2xConnection) SendPercussionEdit(perc uint8) error {
+	key := 37 + ((perc / 2) * 12) + ((perc % 2) * 5)
+	if err := conn.readerWriter.NoteOn(conn.Config.voiceMidiChan, key, 127); err != nil {
+		return errors.Wrapf(err, "error setting note on for key %d", key)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := conn.readerWriter.NoteOff(conn.Config.voiceMidiChan, key); err != nil {
+		return errors.Wrapf(err, "error setting note on for key %d", key)
+	}
+	return nil
+}
+
 func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, error) {
 	acrSysEx := []byte{51, conn.Config.GlobalMidiChan, 4, 28, conn.Config.voiceMidiChan}
 	if err := conn.readerWriter.SysEx(conn.Config.voiceMidiChan, acrSysEx); err != nil {
@@ -107,7 +119,14 @@ func (conn *Nr2xConnection) Close() {
 	conn.shutdownChan <- nil
 }
 
-func GetProgram(conf *Nr2xConnectionConfig, filename string) error {
+func GetProgram(conf *Nr2xConnectionConfig, perc bool, filename string) error {
+	if perc {
+		return GetPercussionProgram(conf, filename)
+	}
+	return GetStandardProgram(conf, filename)
+}
+
+func GetStandardProgram(conf *Nr2xConnectionConfig, filename string) error {
 	conn, err := NewNr2xConnection(conf)
 	if err != nil {
 		return err
@@ -127,7 +146,14 @@ func GetProgram(conf *Nr2xConnectionConfig, filename string) error {
 	return nil
 }
 
-func SetProgram(conf *Nr2xConnectionConfig, filename string) error {
+func SetProgram(conf *Nr2xConnectionConfig, perc bool, filename string) error {
+	if perc {
+		return SetPercussionProgram(conf, filename)
+	}
+	return SetStandardProgram(conf, filename)
+}
+
+func SetStandardProgram(conf *Nr2xConnectionConfig, filename string) error {
 	conn, err := NewNr2xConnection(conf)
 	if err != nil {
 		return err
@@ -147,5 +173,78 @@ func SetProgram(conf *Nr2xConnectionConfig, filename string) error {
 	}
 
 	fmt.Printf("Sent program %s to NR2X voice %s\n", filename, conf.Voice)
+	return nil
+}
+
+func GetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
+	conn, err := NewNr2xConnection(conf)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	percussionValues := []*util.VoiceControllerValue{}
+	var i uint8
+	for i = 0; i < 8; i++ {
+		if conn.SendPercussionEdit(i); err != nil {
+			return err
+		}
+		controllerValues, err := conn.GetControllerValues()
+		if err != nil {
+			return err
+		}
+		for _, cv := range controllerValues {
+			percussionValues = append(percussionValues, &util.VoiceControllerValue{
+				Voice:      i,
+				Controller: cv.Controller,
+				Value:      cv.Value,
+			})
+		}
+	}
+
+	filename, err = util.SaveVoiceControllerValues(filename, percussionValues)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Saved NR2X percussion voice %s to %s\n", conf.Voice, filename)
+	return nil
+}
+
+func SetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
+	conn, err := NewNr2xConnection(conf)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	percussionValues, err := util.LoadVoiceControllerValues(filename)
+	if err != nil {
+		return err
+	}
+	percussionValuesMap := map[uint8][]*util.ControllerValue{}
+	var i uint8
+	for i = 0; i < 8; i++ {
+		percussionValuesMap[i] = []*util.ControllerValue{}
+	}
+	for _, vcv := range percussionValues {
+		percussionValuesMap[vcv.Voice] = append(percussionValuesMap[vcv.Voice], &util.ControllerValue{
+			Controller: vcv.Controller,
+			Value:      vcv.Value,
+		})
+	}
+
+	for perc, controllerValues := range percussionValuesMap {
+		if err := conn.SendPercussionEdit(perc); err != nil {
+			return err
+		}
+		for _, controllerValue := range controllerValues {
+			if err := conn.SendControlChange(controllerValue.Controller, controllerValue.Value); err != nil {
+				return err
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+
+	fmt.Printf("Sent percussion program %s to NR2X voice %s\n", filename, conf.Voice)
 	return nil
 }
