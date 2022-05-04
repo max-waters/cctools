@@ -126,7 +126,7 @@ func ListPorts() {
 }
 
 func RunMidiLogger() {
-	port := flag.Uint("p", 1, "The port to listen to")
+	port := flag.UintP("port", "p", 1, "The port to listen to")
 	flag.Parse()
 
 	midiLogger := util.NewMidiLogger(*port - 1)
@@ -135,9 +135,9 @@ func RunMidiLogger() {
 }
 
 func RunControlChangeListener() {
-	port := flag.Uint("p", 1, "The port to listen to")
-	channel := flag.Uint("c", 1, "The channel to listen to")
-	outputfile := flag.String("f", "", "Output file name")
+	port := flag.UintP("port", "p", 1, "The port to listen to")
+	channel := flag.UintP("chan", "c", 1, "The channel to listen to")
+	outputfile := flag.StringP("file", "f", "", "Output file name")
 	flag.Parse()
 
 	cclv := util.NewControlChangeListenerView(uint(*port)-1, uint8(*channel)-1, *outputfile)
@@ -148,7 +148,7 @@ func RunControlChangeListener() {
 func RunNr2xGet() {
 	SetNr2xFlags()
 	var perc bool
-	flag.BoolVar(&perc, "p", false, "get a percussion kit")
+	flag.BoolVarP(&perc, "perc", "p", false, "get a percussion kit")
 	ParseFlagsWithPositionalArg("output-file")
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -159,7 +159,7 @@ func RunNr2xGet() {
 func RunNr2xSet() {
 	SetNr2xFlags()
 	var perc bool
-	flag.BoolVar(&perc, "p", false, "set a percussion kit")
+	flag.BoolVarP(&perc, "perc", "p", false, "set a percussion kit")
 	ParseFlagsWithPositionalArg("input-file")
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -209,8 +209,8 @@ func RunNd2Test() {
 
 func RunNd2NmG2() {
 	SetNd2Flags()
-	flag.UintVar(&Defaults.NmG2.InPort, "ig", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
-	flag.UintVar(&Defaults.NmG2.OutPort, "og", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
+	flag.UintVarP(&Defaults.NmG2.InPort, "g2-in", "ig", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
+	flag.UintVarP(&Defaults.NmG2.OutPort, "g2-out", "og", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
 	flag.Parse()
 
 	Defaults.SetZeroIndexing()
@@ -234,9 +234,9 @@ func RunNmG2Get() {
 func RunNmG2Morph() {
 	SetNmG2Flags()
 	var l, r, m uint8
-	flag.Uint8Var(&l, "l", 117, "Nord G2 target controller num")
-	flag.Uint8Var(&r, "r", 118, "Nord G2 target controller num")
-	flag.Uint8Var(&m, "m", 119, "Nord G2 morpher controller num")
+	flag.Uint8VarP(&l, "left", "l", 117, "Nord G2 target controller num")
+	flag.Uint8VarP(&r, "right", "r", 118, "Nord G2 target controller num")
+	flag.Uint8VarP(&m, "morph", "m", 119, "Nord G2 morpher controller num")
 	flag.Parse()
 
 	Defaults.SetZeroIndexing()
@@ -248,24 +248,24 @@ func RunNmG2Morph() {
 }
 
 func SetNr2xFlags() {
-	flag.UintVar(&Defaults.Nr2x.InPort, "i", Defaults.Nr2x.InPort, "Nord Rack 2X MIDI in port")
-	flag.UintVar(&Defaults.Nr2x.OutPort, "o", Defaults.Nr2x.OutPort, "Nord Rack 2X MIDI out port")
-	flag.StringVar(&Defaults.Nr2x.Voice, "v", Defaults.Nr2x.Voice, "Nord Rack 2X voice/slot [A, B, C, D]")
-	flag.Uint8Var(&Defaults.Nr2x.GlobalMidiChan, "g", Defaults.Nr2x.GlobalMidiChan, "Nord Rack 2X Global MIDI channel")
+	flag.UintVarP(&Defaults.Nr2x.InPort, "in", "i", Defaults.Nr2x.InPort, "Nord Rack 2X MIDI in port")
+	flag.UintVarP(&Defaults.Nr2x.OutPort, "out", "o", Defaults.Nr2x.OutPort, "Nord Rack 2X MIDI out port")
+	flag.StringVarP(&Defaults.Nr2x.Voice, "voice", "v", Defaults.Nr2x.Voice, "Nord Rack 2X voice/slot [A, B, C, D]")
+	flag.Uint8VarP(&Defaults.Nr2x.GlobalMidiChan, "global", "g", Defaults.Nr2x.GlobalMidiChan, "Nord Rack 2X Global MIDI channel")
 }
 
 func SetNmG2Flags() {
-	flag.UintVar(&Defaults.NmG2.InPort, "i", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
-	flag.UintVar(&Defaults.NmG2.OutPort, "o", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
-	flag.StringVar(&Defaults.NmG2.Voice, "v", Defaults.NmG2.Voice, "Nord G2 voice/slot [A, B, C, D]")
-	flag.Uint8Var(&Defaults.NmG2.GlobalMidiChan, "g", Defaults.NmG2.GlobalMidiChan, "Nord G2 Global MIDI channel")
+	flag.UintVarP(&Defaults.NmG2.InPort, "in", "i", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
+	flag.UintVarP(&Defaults.NmG2.OutPort, "out", "o", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
+	flag.StringVarP(&Defaults.NmG2.Voice, "voice", "v", Defaults.NmG2.Voice, "Nord G2 voice/slot [A, B, C, D]")
+	flag.Uint8VarP(&Defaults.NmG2.GlobalMidiChan, "global", "g", Defaults.NmG2.GlobalMidiChan, "Nord G2 Global MIDI channel")
 }
 
 func SetNd2Flags() {
-	flag.UintVar(&Defaults.Nd2.InPort, "i", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
-	flag.UintVar(&Defaults.Nd2.OutPort, "o", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
-	flag.Uint8Var(&Defaults.Nd2.BaseMidiChannel, "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for Nord Drum 2 voice 1")
-	flag.Uint8Var(&Defaults.Nd2.GlobalMidiChannel, "g", Defaults.Nd2.GlobalMidiChannel, "Nord Drum 2 Global MIDI channel")
+	flag.UintVarP(&Defaults.Nd2.InPort, "in", "i", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
+	flag.UintVarP(&Defaults.Nd2.OutPort, "out", "o", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
+	flag.Uint8VarP(&Defaults.Nd2.BaseMidiChannel, "base", "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for Nord Drum 2 voice 1")
+	flag.Uint8VarP(&Defaults.Nd2.GlobalMidiChannel, "global", "g", Defaults.Nd2.GlobalMidiChannel, "Nord Drum 2 Global MIDI channel")
 }
 
 func ExitOnErr(err error) {

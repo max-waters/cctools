@@ -169,7 +169,7 @@ func SetStandardProgram(conf *Nr2xConnectionConfig, filename string) error {
 		if err := conn.SendControlChange(controllerValue.Controller, controllerValue.Value); err != nil {
 			return err
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	fmt.Printf("Sent program %s to NR2X voice %s\n", filename, conf.Voice)
