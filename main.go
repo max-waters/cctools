@@ -53,6 +53,7 @@ const CommandLog = "log"
 const CommandListen = "listen"
 const CommandNr2xSet = "nr2x-set"
 const CommandNr2xGet = "nr2x-get"
+const CommandNr2xMakePercVars = "nr2x-mkpvars"
 const CommandNd2Set = "nd2-set"
 const CommandNd2Get = "nd2-get"
 const CommandNd2Decode = "nd2-decode"
@@ -92,6 +93,8 @@ func main() {
 		RunNr2xGet()
 	case CommandNr2xSet:
 		RunNr2xSet()
+	case CommandNr2xMakePercVars:
+		RunNr2xMkVariations()
 	// Nord Drum 2
 	case CommandNd2Get:
 		RunNd2Get()
@@ -114,8 +117,8 @@ func main() {
 }
 
 func PrintCommandsAndExit(cause string) {
-	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
-		CommandList, CommandLog, CommandListen, CommandNr2xGet, CommandNr2xSet,
+	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
+		CommandList, CommandLog, CommandListen, CommandNr2xGet, CommandNr2xSet, CommandNr2xMakePercVars,
 		CommandNd2Get, CommandNd2Set, CommandNmG2Get, CommandNmG2Morph, CommandNd2Nmg2, CommandNd2Decode, CommandNd2Test)
 	os.Exit(1)
 }
@@ -165,6 +168,17 @@ func RunNr2xSet() {
 	Defaults.SetZeroIndexing()
 
 	ExitOnErr(nr2x.SetProgram(Defaults.Nr2x, perc, filename))
+}
+
+func RunNr2xMkVariations() {
+	maxMspFormat := false
+	files := []string{}
+	flag.BoolVarP(&maxMspFormat, "max", "m", false, "output in Max/MSP coll format")
+	flag.StringSliceVarP(&files, "files", "f", []string{}, "variation files")
+	ParseFlagsWithPositionalArg("output-file")
+	filename := flag.Args()[0]
+
+	ExitOnErr(nr2x.MakePercussionVariations(files, filename, maxMspFormat))
 }
 
 func RunNd2Get() {

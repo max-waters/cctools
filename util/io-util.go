@@ -49,6 +49,37 @@ func SaveVoiceControllerValues(filename string, data []*VoiceControllerValue) (s
 }
 
 func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerValue) (string, error) {
+	dataTable, err := FormatVoiceControllerValues(data)
+	if err != nil {
+		return "", nil
+	}
+
+	filename, err = WriteDataToFile(filename, dataTable, WriteMaxMspCollFormat)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot save voice controller values in Max/MSP format")
+	}
+	return filename, nil
+}
+
+func SaveVoiceVariationControllerValuesAsMaxMsp(filename string, data [][]*VoiceControllerValue) (string, error) {
+	tableData := [][]interface{}{}
+	for i, vcvs := range data {
+		formatted, err := FormatVoiceControllerValues(vcvs)
+		if err != nil {
+			return "", err
+		}
+
+		// append variation num to other rows
+		for j := 0; j < len(formatted); j++ {
+			row := append([]interface{}{i}, formatted[j]...)
+			tableData = append(tableData, row)
+		}
+	}
+
+	return WriteDataToFile(filename, tableData, WriteMaxMspTextFormat)
+}
+
+func FormatVoiceControllerValues(data []*VoiceControllerValue) ([][]interface{}, error) {
 	voiceSet := map[uint8]interface{}{}
 	controllerSet := map[uint8]interface{}{}
 
@@ -73,7 +104,7 @@ func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerV
 		if size == -1 {
 			size = len(controllerMap)
 		} else if len(controllerMap) != size {
-			return "", errors.Errorf("Voice %d has %d controller values, expected %d", v, len(controllerMap), size)
+			return nil, errors.Errorf("Voice %d has %d controller values, expected %d", v, len(controllerMap), size)
 		}
 	}
 
@@ -114,11 +145,22 @@ func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerV
 		}
 	}
 
-	filename, err := WriteDataToFile(filename, dataTable, WriteMaxMspCollFormat)
-	if err != nil {
-		return "", errors.Wrap(err, "cannot save voice controller values in Max/MSP format")
+	return dataTable, nil
+}
+
+func WriteMaxMspTextFormat(in interface{}, out io.Writer) error {
+	dataTable, ok := in.([][]interface{})
+	if !ok {
+		return errors.Errorf("must be of type [][]interface{}, not %T", in)
 	}
-	return filename, nil
+
+	for _, row := range dataTable {
+		for _, val := range row {
+			out.Write([]byte(fmt.Sprintf("%v ", val)))
+		}
+		out.Write([]byte("\n"))
+	}
+	return nil
 }
 
 func WriteMaxMspCollFormat(in interface{}, out io.Writer) error {

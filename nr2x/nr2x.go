@@ -248,3 +248,32 @@ func SetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
 	fmt.Printf("Sent percussion program %s to NR2X voice %s\n", filename, conf.Voice)
 	return nil
 }
+
+func MakePercussionVariations(varFiles []string, outFile string, maxMspFormat bool) error {
+	voiceVarConVals := make([][]*util.VoiceControllerValue, 8)
+	for i := 0; i < 8; i++ {
+		voiceVarConVals[i] = []*util.VoiceControllerValue{}
+	}
+	for i, varFile := range varFiles {
+		vcvs, err := util.LoadVoiceControllerValues(varFile)
+		if err != nil {
+			return err
+		}
+
+		for _, vcv := range vcvs {
+			varConVal := &util.VoiceControllerValue{
+				Voice:      uint8(i), // ie variation
+				Controller: vcv.Controller,
+				Value:      vcv.Value,
+			}
+			voiceVarConVals[vcv.Voice] = append(voiceVarConVals[vcv.Voice], varConVal)
+		}
+	}
+
+	filename, err := util.SaveVoiceVariationControllerValuesAsMaxMsp(outFile, voiceVarConVals)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Saved NR2X percussion variations to %s\n", filename)
+	return nil
+}
