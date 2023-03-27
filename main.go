@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	flag "github.com/spf13/pflag"
@@ -48,21 +50,23 @@ func (def DefaultFlags) SetZeroIndexing() {
 var DefaultsFileBytes []byte
 var Defaults *DefaultFlags
 
-const CommandList = "list"
-const CommandLog = "log"
-const CommandListen = "listen"
-const CommandNr2xSet = "nr2x-set"
-const CommandNr2xGet = "nr2x-get"
-const CommandNr2xMakePercVars = "nr2x-mkpvars"
-const CommandNd2Set = "nd2-set"
-const CommandNd2Get = "nd2-get"
-const CommandNd2Decode = "nd2-decode"
-const CommandNd2Test = "nd2-test"
-const CommandNd2Nmg2 = "nd2-nmg2"
-const CommandNmG2Get = "nmg2-get"
-const CommandNmG2Morph = "nmg2-morph"
-
-const CommandPrintDefaults = "print-defaults"
+const (
+	CommandPrintDefaults    = "config"
+	CommandList             = "ls"
+	CommandLog              = "log"
+	CommandListen           = "listen"
+	CommandNr2xSet          = "nr2x-set"
+	CommandNr2xGet          = "nr2x-get"
+	CommandNr2xMakePercVars = "nr2x-mkpvars"
+	CommandNd2Set           = "nd2-set"
+	CommandNd2Get           = "nd2-get"
+	CommandNd2SetVoice      = "nd2-setv"
+	CommandNd2Decode        = "nd2-decode"
+	CommandNd2Test          = "nd2-test"
+	CommandNd2Nmg2          = "nd2-nmg2"
+	CommandNmG2Get          = "nmg2-get"
+	CommandNmG2Morph        = "nmg2-morph"
+)
 
 func init() {
 	Defaults = &DefaultFlags{}
@@ -100,6 +104,8 @@ func main() {
 		RunNd2Get()
 	case CommandNd2Set:
 		RunNd2Set()
+	case CommandNd2SetVoice:
+		RunNd2SetVoice()
 	case CommandNd2Decode:
 		RunNd2Decoder()
 	case CommandNd2Test:
@@ -117,9 +123,14 @@ func main() {
 }
 
 func PrintCommandsAndExit(cause string) {
-	fmt.Printf("%s. Options:\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n  %s\n", cause,
-		CommandList, CommandLog, CommandListen, CommandNr2xGet, CommandNr2xSet, CommandNr2xMakePercVars,
-		CommandNd2Get, CommandNd2Set, CommandNmG2Get, CommandNmG2Morph, CommandNd2Nmg2, CommandNd2Decode, CommandNd2Test)
+	allCommands := []string{
+		CommandPrintDefaults, CommandList, CommandLog, CommandListen,
+		CommandNr2xGet, CommandNr2xSet, CommandNr2xMakePercVars,
+		CommandNd2Get, CommandNd2Set, CommandNd2SetVoice,
+		CommandNmG2Get, CommandNmG2Morph, CommandNd2Nmg2, CommandNd2Decode, CommandNd2Test,
+	}
+
+	fmt.Printf("%s. Options:\n  %s\n", cause, strings.Join(allCommands, "\n  "))
 	os.Exit(1)
 }
 
@@ -197,6 +208,41 @@ func RunNd2Set() {
 	Defaults.SetZeroIndexing()
 
 	ExitOnErr(nd2.SetProgram(Defaults.Nd2, filename))
+}
+
+func RunNd2SetVoice() {
+	SetNd2Flags()
+	var voice *uint8
+	flag.Uint8VarP(voice, "voice", "v", 0, "voice to set")
+	ParseFlagsWithPositionalArg("input-file")
+
+	filename := flag.Args()[0]
+	if voice == nil || *voice == 0 {
+		ExitOnErr(errors.New("Voice must be set"))
+	}
+
+	Defaults.SetZeroIndexing()
+	ExitOnErr(nd2.SetVoice(Defaults.Nd2, filename, *voice+1))
+}
+
+func RunNd2CopyVoice() {
+	SetNd2Flags()
+	var from, to *uint8
+
+	flag.Uint8VarP(from, "from", "f", 0, "voice to copy")
+	flag.Uint8VarP(from, "to", "t", 0, "voice to set")
+	flag.Parse()
+
+	if from == nil || *from == 0 {
+		ExitOnErr(errors.New("From voice must be set"))
+	}
+
+	if to == nil || *to == 0 {
+		ExitOnErr(errors.New("To voice must be set"))
+	}
+
+	Defaults.SetZeroIndexing()
+	ExitOnErr(nd2.CopyVoice(Defaults.Nd2, *from+1, *to+1))
 }
 
 func RunNd2Decoder() {
