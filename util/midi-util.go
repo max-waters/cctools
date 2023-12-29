@@ -10,11 +10,18 @@ import (
 	driver "gitlab.com/gomidi/rtmididrv"
 )
 
-// type VariationControllerValue struct {
-// 	Variation  uint8 `csv:"variation"`
-// 	Controller uint8 `csv:"controller"`
-// 	Value      uint8 `csv:"value"`
-// }
+type VariationVoiceControllerValue struct {
+	Variation  uint8 `csv:"variation"`
+	Voice      uint8 `csv:"voice"`
+	Controller uint8 `csv:"controller"`
+	Value      uint8 `csv:"value"`
+}
+
+type VariationControllerValue struct {
+	Variation  uint8 `csv:"variation"`
+	Controller uint8 `csv:"controller"`
+	Value      uint8 `csv:"value"`
+}
 
 type VoiceControllerValue struct {
 	Voice      uint8 `csv:"voice"`

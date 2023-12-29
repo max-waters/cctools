@@ -61,6 +61,7 @@ func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerV
 	return filename, nil
 }
 
+// data: voice x variation x ctrler x value
 func SaveVoiceVariationControllerValuesAsMaxMsp(filename string, data [][]*VoiceControllerValue) (string, error) {
 	tableData := [][]interface{}{}
 	for i, vcvs := range data {

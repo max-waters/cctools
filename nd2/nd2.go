@@ -72,7 +72,7 @@ func SetVoice(conf *Nd2ConnectionConfig, filename string, voice uint8) error {
 			}
 		}
 	}
-	fmt.Printf("Sent voice %d in program %s to ND2\n", voice, filename)
+	fmt.Printf("Sent voice %d in program %s to ND2\n", voice+1, filename)
 	return nil
 }
 
@@ -100,6 +100,6 @@ func CopyVoice(conf *Nd2ConnectionConfig, from, to uint8) error {
 			}
 		}
 	}
-	fmt.Printf("Copied voice %d to voice %d in ND2\n", from, to)
+	fmt.Printf("Copied voice %d to voice %d in ND2\n", from+1, to+1)
 	return nil
 }

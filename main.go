@@ -60,7 +60,8 @@ const (
 	CommandNr2xMakePercVars = "nr2x-mkpvars"
 	CommandNd2Set           = "nd2-set"
 	CommandNd2Get           = "nd2-get"
-	CommandNd2SetVoice      = "nd2-setv"
+	CommandNd2SetVoice      = "nd2-vset"
+	CommandNd2CopyVoice     = "nd2-vcpy"
 	CommandNd2Decode        = "nd2-decode"
 	CommandNd2Test          = "nd2-test"
 	CommandNd2Nmg2          = "nd2-nmg2"
@@ -106,6 +107,8 @@ func main() {
 		RunNd2Set()
 	case CommandNd2SetVoice:
 		RunNd2SetVoice()
+	case CommandNd2CopyVoice:
+		RunNd2CopyVoice()
 	case CommandNd2Decode:
 		RunNd2Decoder()
 	case CommandNd2Test:
@@ -126,7 +129,7 @@ func PrintCommandsAndExit(cause string) {
 	allCommands := []string{
 		CommandPrintDefaults, CommandList, CommandLog, CommandListen,
 		CommandNr2xGet, CommandNr2xSet, CommandNr2xMakePercVars,
-		CommandNd2Get, CommandNd2Set, CommandNd2SetVoice,
+		CommandNd2Get, CommandNd2Set, CommandNd2SetVoice, CommandNd2CopyVoice,
 		CommandNmG2Get, CommandNmG2Morph, CommandNd2Nmg2, CommandNd2Decode, CommandNd2Test,
 	}
 
@@ -212,37 +215,37 @@ func RunNd2Set() {
 
 func RunNd2SetVoice() {
 	SetNd2Flags()
-	var voice *uint8
-	flag.Uint8VarP(voice, "voice", "v", 0, "voice to set")
+	var voice uint8
+	flag.Uint8VarP(&voice, "voice", "v", 0, "Voice to set")
 	ParseFlagsWithPositionalArg("input-file")
 
 	filename := flag.Args()[0]
-	if voice == nil || *voice == 0 {
+	if voice == 0 {
 		ExitOnErr(errors.New("Voice must be set"))
 	}
 
 	Defaults.SetZeroIndexing()
-	ExitOnErr(nd2.SetVoice(Defaults.Nd2, filename, *voice+1))
+	ExitOnErr(nd2.SetVoice(Defaults.Nd2, filename, voice-1))
 }
 
 func RunNd2CopyVoice() {
 	SetNd2Flags()
-	var from, to *uint8
+	var from, to uint8
 
-	flag.Uint8VarP(from, "from", "f", 0, "voice to copy")
-	flag.Uint8VarP(from, "to", "t", 0, "voice to set")
+	flag.Uint8VarP(&from, "from", "f", 0, "Voice to copy")
+	flag.Uint8VarP(&to, "to", "t", 0, "Voice to set")
 	flag.Parse()
 
-	if from == nil || *from == 0 {
+	if from == 0 {
 		ExitOnErr(errors.New("From voice must be set"))
 	}
 
-	if to == nil || *to == 0 {
+	if to == 0 {
 		ExitOnErr(errors.New("To voice must be set"))
 	}
 
 	Defaults.SetZeroIndexing()
-	ExitOnErr(nd2.CopyVoice(Defaults.Nd2, *from+1, *to+1))
+	ExitOnErr(nd2.CopyVoice(Defaults.Nd2, from-1, to-1))
 }
 
 func RunNd2Decoder() {
