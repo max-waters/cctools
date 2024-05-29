@@ -2,6 +2,7 @@ package nd2
 
 import (
 	"fmt"
+	"math/rand"
 
 	"mvw.org/cctools/util"
 )
@@ -101,5 +102,22 @@ func CopyVoice(conf *Nd2ConnectionConfig, from, to uint8) error {
 		}
 	}
 	fmt.Printf("Copied voice %d to voice %d in ND2\n", from+1, to+1)
+	return nil
+}
+
+func SetRandomVoice(conf *Nd2ConnectionConfig, voice uint8) error {
+	conn, err := NewNd2Connection(conf)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for _, c := range Nd2Controllers {
+		if err := conn.SendControlChange(voice, c, uint8(rand.Intn(127))); err != nil {
+			return err
+		}
+	}
+
+	fmt.Printf("Sent random program to ND2 voice %d\n", voice+1)
 	return nil
 }
