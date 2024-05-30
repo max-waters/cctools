@@ -1,4 +1,4 @@
-NAME=cctools
+NAME=cct
 COMPILE_DIR=./bin
 INSTALL_DIR=/usr/local/bin
 

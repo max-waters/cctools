@@ -2,17 +2,19 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/pkg/errors"
+	flag "github.com/spf13/pflag"
 )
+
+type Command func(args []string) error
 
 type CommandTree struct {
 	Command     Command
 	SubCommands map[string]*CommandTree
 }
-
-type Command func(commandName, args []string) error
 
 type CommandTreeOpt func(*CommandTree) error
 
@@ -76,27 +78,25 @@ func NewSubCommandNode(subCommands map[string]*CommandTree) *CommandTree {
 	}
 }
 
-func GetCommand(ct *CommandTree, args []string) (string, func() error, error) {
-	commandName := args[:1]
+func GetCommand(ct *CommandTree, args []string) (Command, []string, error) {
+	name := args[0]
 	args = args[1:]
 	for ct.Command == nil {
 		if len(args) == 0 {
-			return "", nil, errors.Errorf("subcommand expected. %s", FormatSubtreeOptions(ct))
+			return nil, nil, errors.Errorf("subcommand expected. %s", FormatSubtreeOptions(ct))
 		}
 
 		subTree, ok := ct.SubCommands[args[0]]
 		if !ok {
-			return "", nil, errors.Errorf("unknown subcommand '%s'. %s", args[0], FormatSubtreeOptions(ct))
+			return nil, nil, errors.Errorf("unknown subcommand '%s'. %s", args[0], FormatSubtreeOptions(ct))
 		}
 
-		commandName = append(commandName, args[0])
+		name = fmt.Sprintf("%s %s", name, args[0])
 		args = args[1:]
 		ct = subTree
 	}
 
-	return strings.Join(commandName, " "), func() error {
-		return ct.Command(commandName, args)
-	}, nil
+	return ct.Command, append([]string{name}, args...), nil
 }
 
 func FormatSubtreeOptions(tree *CommandTree) string {
@@ -105,4 +105,65 @@ func FormatSubtreeOptions(tree *CommandTree) string {
 		subcommands = append(subcommands, commandName)
 	}
 	return fmt.Sprintf("Options:\n  %s", strings.Join(subcommands, "\n  "))
+}
+
+type OptionDef struct {
+	Name      string
+	ShortName string
+}
+
+type ParseOptions struct {
+	RequiredArguments []string
+	RequiredOptions   []*OptionDef
+}
+
+type ParseOpt func(*ParseOptions)
+
+func WithRequiredArg(arg string) ParseOpt {
+	return func(po *ParseOptions) {
+		po.RequiredArguments = append(po.RequiredArguments, arg)
+	}
+}
+
+func WithRequiredOpt(name, shortName string) ParseOpt {
+	return func(ro *ParseOptions) {
+		ro.RequiredOptions = append(ro.RequiredOptions, &OptionDef{Name: name, ShortName: shortName})
+	}
+}
+
+func ParseArgs(args []string, parseOpts ...ParseOpt) {
+	reqOpts := &ParseOptions{
+		RequiredArguments: []string{},
+		RequiredOptions:   []*OptionDef{},
+	}
+	for _, opt := range parseOpts {
+		opt(reqOpts)
+	}
+
+	flag.Usage = func() {
+		fmt.Printf("Usage: %s [OPTIONS] %s\n", args[0], strings.Join(reqOpts.RequiredArguments, " "))
+		flag.PrintDefaults()
+	}
+
+	flag.CommandLine.Parse(args[1:])
+
+	if flag.NArg() != len(reqOpts.RequiredArguments) {
+		if flag.NArg() < len(reqOpts.RequiredArguments) {
+			fmt.Printf("argument(s) required: %s\n", strings.Join(reqOpts.RequiredArguments[flag.NArg():], " "))
+		} else {
+			fmt.Printf("unexpected argument(s): %s\n", strings.Join(flag.Args()[len(reqOpts.RequiredArguments):], " "))
+		}
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	seen := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) { seen[f.Name] = true })
+	for _, req := range reqOpts.RequiredOptions {
+		if !seen[req.Name] && !seen[req.ShortName] {
+			fmt.Printf("option is required: %s\n", req.Name)
+			flag.Usage()
+			os.Exit(1)
+		}
+	}
 }

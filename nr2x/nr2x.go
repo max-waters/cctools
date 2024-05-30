@@ -186,7 +186,7 @@ func GetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
 	percussionValues := []*util.VoiceControllerValue{}
 	var i uint8
 	for i = 0; i < 8; i++ {
-		if conn.SendPercussionEdit(i); err != nil {
+		if err := conn.SendPercussionEdit(i); err != nil {
 			return err
 		}
 		controllerValues, err := conn.GetControllerValues()
