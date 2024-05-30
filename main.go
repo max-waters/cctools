@@ -71,81 +71,66 @@ const (
 	CommandNmG2Morph         = "nmg2-morph"
 )
 
+var mainCommand *util.CommandTree
+
 func init() {
 	Defaults = &DefaultFlags{}
 	if err := yaml.Unmarshal(DefaultsFileBytes, Defaults); err != nil {
 		panic(err)
 	}
-}
 
-type Command struct {
-	Run         func([]string) error
-	SubCommands map[string]*Command
-}
-
-func (c *Command) Get(args []string, idx int) (func() error, error) {
-	if len(c.SubCommands) == 0 {
-		return func() error {
-			return c.Run(args[idx:])
-		}, nil
+	nd2Command, err := util.NewCommandTree(
+		util.WithSubCommand("get", RunNd2Get),
+		util.WithSubCommand("set", RunNd2Set),
+		util.WithSubCommand("vrand", RunNd2RandomiseVoice),
+		util.WithSubCommand("vset", RunNd2SetVoice),
+		util.WithSubCommand("vcopy", RunNd2CopyVoice),
+	)
+	if err != nil {
+		panic(err)
 	}
 
-	if len(args) == idx {
-		return nil, c.FormatError("subcommand expected")
+	nr2xCommand, err := util.NewCommandTree(
+		util.WithSubCommand("get", RunNr2xGet),
+		util.WithSubCommand("set", RunNr2xSet),
+	)
+	if err != nil {
+		panic(err)
 	}
 
-	subCommand, ok := c.SubCommands[args[idx]]
-	if !ok {
-		return nil, c.FormatError("unknown subcommand '%s'", os.Args[idx])
+	nmg2Command, err := util.NewCommandTree(
+		util.WithSubCommand("get", RunNmG2Get),
+		util.WithSubCommand("morph", RunNmG2Morph),
+		util.WithSubCommand("nd2-controller", RunNd2NmG2),
+	)
+	if err != nil {
+		panic(err)
 	}
-	return subCommand.Get(args, idx+1)
-}
 
-func (c *Command) FormatError(msg string, args ...interface{}) error {
-	subcommands := []string{}
-	for commandName := range c.SubCommands {
-		subcommands = append(subcommands, commandName)
+	mainCommand, err = util.NewCommandTree(
+		util.WithSubCommand("ls", ListPorts),
+		util.WithSubCommand("log", RunMidiLogger),
+		util.WithSubCommand("config", PrintDefaultConfig),
+		util.WithSubCommandTree("nr2x", nr2xCommand),
+		util.WithSubCommandTree("nd2", nd2Command),
+		util.WithSubCommandTree("nmg2", nmg2Command),
+	)
+	if err != nil {
+		panic(err)
 	}
-	return errors.Errorf("%s. Options:\n  %s", fmt.Sprintf(msg, args...), strings.Join(subcommands, "\n  "))
-}
-
-func NewCommand(f func([]string) error) *Command {
-	return &Command{Run: f}
-}
-
-var nr2xCommand = &Command{
-	SubCommands: map[string]*Command{
-		"get": NewCommand(RunNr2xGet),
-		"set": NewCommand(RunNr2xSet),
-	},
-}
-
-var nd2Command = &Command{
-	SubCommands: map[string]*Command{
-		"get":   NewCommand(RunNd2Get),
-		"set":   NewCommand(RunNd2Set),
-		"vrand": NewCommand(RunNd2RandomiseVoice),
-	},
-}
-
-var mainCommand = &Command{
-	SubCommands: map[string]*Command{
-		"ls":     NewCommand(ListPorts),
-		"log":    NewCommand(RunMidiLogger),
-		"config": NewCommand(PrintDefaultConfig),
-		"nr2x":   nr2xCommand,
-		"nd2":    nd2Command,
-	},
 }
 
 func main() {
-	command, err := mainCommand.Get(os.Args, 1)
+	commandName, command, err := util.GetCommand(mainCommand, os.Args)
 	if err != nil {
 		fmt.Printf("Command line error: %s\n", err)
 		os.Exit(1)
 	}
 
-	ExitOnErr(command())
+	if err := command(); err != nil {
+		fmt.Printf("%s exited with error: %s\n", commandName, err)
+		os.Exit(1)
+	}
 }
 
 /*
@@ -205,8 +190,9 @@ func _main() {
 // 	os.Exit(1)
 // }
 
-func PrintDefaultConfig(args []string) error {
-	flag.CommandLine.Parse(args)
+func PrintDefaultConfig(subCommands, args []string) error {
+	ParseFlags(subCommands, args)
+
 	bts, err := yaml.Marshal(Defaults)
 	if err != nil {
 		return err
@@ -215,185 +201,181 @@ func PrintDefaultConfig(args []string) error {
 	return nil
 }
 
-func ListPorts(args []string) error {
-	flag.CommandLine.Parse(args)
+func ListPorts(subCommands, args []string) error {
+	ParseFlags(subCommands, args)
+
 	return util.ListPorts()
 }
 
-func RunMidiLogger(args []string) error {
+func RunMidiLogger(subCommands, args []string) error {
 	port := flag.UintP("port", "p", 1, "The port to listen to")
-	flag.CommandLine.Parse(args)
+
+	ParseFlags(subCommands, args)
 
 	midiLogger := util.NewMidiLogger(*port - 1)
 	CallOnShutdownSignal(midiLogger.Stop)
+
 	return midiLogger.Start()
 }
 
-func RunControlChangeListener() {
+func RunControlChangeListener(subCommands, args []string) error {
 	port := flag.UintP("port", "p", 1, "The port to listen to")
 	channel := flag.UintP("chan", "c", 1, "The channel to listen to")
 	outputfile := flag.StringP("file", "f", "", "Output file name")
-	flag.Parse()
+
+	ParseFlags(subCommands, args)
 
 	cclv := util.NewControlChangeListenerView(uint(*port)-1, uint8(*channel)-1, *outputfile)
 	CallOnShutdownSignal(cclv.Stop)
-	ExitOnErr(cclv.Start())
+
+	return cclv.Start()
 }
 
-func RunNr2xGet(args []string) error {
+func RunNr2xGet(subCommands, args []string) error {
 	SetNr2xFlags()
 	var perc bool
-	flag.BoolVarP(&perc, "perc", "p", false, "get a percussion kit")
-	ParseFlags(args, WithRequiredArg("output-file"))
+	flag.BoolVarP(&perc, "percussion", "p", false, "get a percussion kit")
+
+	ParseFlags(subCommands, args, WithRequiredArg("output-file"))
+
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
 	return nr2x.GetProgram(Defaults.Nr2x, perc, filename)
 }
 
-func RunNr2xSet(args []string) error {
+func RunNr2xSet(subCommands, args []string) error {
 	SetNr2xFlags()
 	var perc bool
 	flag.BoolVarP(&perc, "perc", "p", false, "set a percussion kit")
-	ParseFlags(args, WithRequiredArg("input-file"))
+
+	ParseFlags(subCommands, args, WithRequiredArg("input-file"))
+
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
 	return nr2x.SetProgram(Defaults.Nr2x, perc, filename)
 }
 
-func RunNr2xMkVariations(args []string) error {
+func RunNr2xMkVariations(subCommands, args []string) error {
 	maxMspFormat := false
 	files := []string{}
 	flag.BoolVarP(&maxMspFormat, "max", "m", false, "output in Max/MSP coll format")
 	flag.StringSliceVarP(&files, "files", "f", []string{}, "variation files")
-	ParseFlags(args, WithRequiredArg("output-file"))
+
+	ParseFlags(subCommands, args, WithRequiredArg("output-file"))
+
 	filename := flag.Args()[0]
 
 	return nr2x.MakePercussionVariations(files, filename, maxMspFormat)
 }
 
-func RunNd2Get(args []string) error {
+func RunNd2Get(subCommands, args []string) error {
 	SetNd2Flags()
-	ParseFlags(args, WithRequiredArg("output-file"))
+
+	ParseFlags(subCommands, args, WithRequiredArg("output-file"))
+
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
 	return nd2.GetProgram(Defaults.Nd2, filename)
 }
 
-func RunNd2Set(args []string) error {
+func RunNd2Set(subCommands, args []string) error {
 	SetNd2Flags()
-	ParseFlags(args, WithRequiredArg("input-file"))
+
+	ParseFlags(subCommands, args, WithRequiredArg("input-file"))
+
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
 	return nd2.SetProgram(Defaults.Nd2, filename)
 }
 
-func RunNd2SetVoice(args []string) error {
+func RunNd2SetVoice(subCommands, args []string) error {
 	SetNd2Flags()
 	var voice uint8
 	flag.Uint8VarP(&voice, "voice", "v", 0, "Voice to set")
-	ParseFlags(args, WithRequiredArg("input-file"), WithRequiredFlag("voice", "v"))
+
+	ParseFlags(subCommands, args, WithRequiredArg("input-file"), WithRequiredFlag("voice", "v"))
 
 	filename := flag.Args()[0]
-
 	Defaults.SetZeroIndexing()
+
 	return nd2.SetVoice(Defaults.Nd2, filename, voice-1)
 }
 
-func RunNd2CopyVoice() {
+func RunNd2CopyVoice(subCommands, args []string) error {
 	SetNd2Flags()
 	var from, to uint8
-
 	flag.Uint8VarP(&from, "from", "f", 0, "Voice to copy")
 	flag.Uint8VarP(&to, "to", "t", 0, "Voice to set")
-	flag.Parse()
 
-	if from == 0 {
-		ExitOnErr(errors.New("From voice must be set"))
-	}
-
-	if to == 0 {
-		ExitOnErr(errors.New("To voice must be set"))
-	}
+	ParseFlags(subCommands, args, WithRequiredFlag("from", "f"), WithRequiredFlag("to", "t"))
 
 	Defaults.SetZeroIndexing()
-	ExitOnErr(nd2.CopyVoice(Defaults.Nd2, from-1, to-1))
+
+	return nd2.CopyVoice(Defaults.Nd2, from-1, to-1)
 }
 
-func RunNd2RandomiseVoice(args []string) error {
+func RunNd2RandomiseVoice(subCommands, args []string) error {
 	SetNd2Flags()
 	var voice uint8
 	flag.Uint8VarP(&voice, "voice", "v", 0, "Voice to randomise")
 
-	ParseFlags(args, WithRequiredFlag("voice", "v"))
+	ParseFlags(subCommands, args, WithRequiredFlag("voice", "v"))
 
 	Defaults.SetZeroIndexing()
 	return nd2.SetRandomVoice(Defaults.Nd2, voice-1)
 }
 
-func RunNd2Decoder() {
-	SetNd2Flags()
-	flag.Parse()
-	Defaults.SetZeroIndexing()
-
-	nd2Decoder, err := nd2.NewNd2Decoder(Defaults.Nd2)
-	ExitOnErr(err)
-	CallOnShutdownSignal(nd2Decoder.Stop)
-	ExitOnErr(nd2Decoder.Run())
-}
-
-func RunNd2Test() {
-	SetNd2Flags()
-	flag.Parse()
-	Defaults.SetZeroIndexing()
-
-	nd2Decoder, err := nd2.NewNd2Decoder(Defaults.Nd2)
-	ExitOnErr(err)
-	CallOnShutdownSignal(nd2Decoder.Stop)
-	ExitOnErr(nd2Decoder.Test())
-}
-
-func RunNd2NmG2() {
+func RunNd2NmG2(subCommands, args []string) error {
 	SetNd2Flags()
 	flag.UintVarP(&Defaults.NmG2.InPort, "g2-in", "ig", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
 	flag.UintVarP(&Defaults.NmG2.OutPort, "g2-out", "og", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
-	flag.Parse()
 
-	Defaults.SetZeroIndexing()
+	ParseFlags(subCommands, args)
+
 	nmg2Conn, err := nd2.NewNmG2Connection(Defaults.Nd2, Defaults.NmG2)
-	ExitOnErr(err)
+	if err != nil {
+		return errors.Wrap(err, "initialisation error")
+	}
 	CallOnShutdownSignal(nmg2Conn.Stop)
-	ExitOnErr(nmg2Conn.Run())
+
+	return nmg2Conn.Run()
 }
 
-func RunNmG2Get(args []string) {
+func RunNmG2Get(subCommands, args []string) error {
 	SetNmG2Flags()
 	maxMspFormat := false
 	flag.BoolVarP(&maxMspFormat, "max", "m", false, "output in Max/MSP coll format")
-	ParseFlags(args, WithRequiredArg("output-file"))
-	filename := flag.Args()[0]
 
+	ParseFlags(subCommands, args, WithRequiredArg("output-file"))
+
+	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
-	ExitOnErr(nmg2.GetVariations(Defaults.NmG2, filename, maxMspFormat))
+
+	return nmg2.GetVariations(Defaults.NmG2, filename, maxMspFormat)
 }
 
-func RunNmG2Morph() {
+func RunNmG2Morph(subCommands, args []string) error {
 	SetNmG2Flags()
 	var l, r, m uint8
 	flag.Uint8VarP(&l, "left", "l", 117, "Nord G2 target controller num")
 	flag.Uint8VarP(&r, "right", "r", 118, "Nord G2 target controller num")
 	flag.Uint8VarP(&m, "morph", "m", 119, "Nord G2 morpher controller num")
-	flag.Parse()
+
+	ParseFlags(subCommands, args)
 
 	Defaults.SetZeroIndexing()
 
 	morpher, err := nmg2.NewNmG2Morpher(Defaults.NmG2, l, r, m)
-	ExitOnErr(err)
+	if err != nil {
+		return errors.Wrap(err, "initialisation error")
+	}
 	CallOnShutdownSignal(morpher.Close)
-	ExitOnErr(morpher.Start())
+
+	return morpher.Start()
 }
 
 func SetNr2xFlags() {
@@ -415,13 +397,6 @@ func SetNd2Flags() {
 	flag.UintVarP(&Defaults.Nd2.OutPort, "out", "o", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
 	flag.Uint8VarP(&Defaults.Nd2.BaseMidiChannel, "base", "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for Nord Drum 2 voice 1")
 	flag.Uint8VarP(&Defaults.Nd2.GlobalMidiChannel, "global", "g", Defaults.Nd2.GlobalMidiChannel, "Nord Drum 2 Global MIDI channel")
-}
-
-func ExitOnErr(err error) {
-	if err != nil {
-		fmt.Printf("%s exited with error: %s\n", os.Args[0], err)
-		os.Exit(1)
-	}
 }
 
 func CallOnShutdownSignal(f func()) {
@@ -457,7 +432,7 @@ func WithRequiredFlag(name, shortName string) ParseOpt {
 	}
 }
 
-func ParseFlags(args []string, opts ...ParseOpt) {
+func ParseFlags(subCommands, args []string, opts ...ParseOpt) {
 	reqOpts := &RequiredOptions{
 		Arguments: []string{},
 		Flags:     []*FlagDef{},
@@ -467,7 +442,7 @@ func ParseFlags(args []string, opts ...ParseOpt) {
 	}
 
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s %s [OPTIONS] %s\n", AppName, os.Args[0], strings.Join(reqOpts.Arguments, " "))
+		fmt.Printf("Usage: %s [OPTIONS] %s\n", strings.Join(subCommands, " "), strings.Join(reqOpts.Arguments, " "))
 		flag.PrintDefaults()
 	}
 
