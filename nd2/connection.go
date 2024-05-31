@@ -36,6 +36,9 @@ var TonePitchController = []uint8{63, 31} // semitone, tone
 var EchoBbmController = []uint8{61, 29}
 var Nd2LsbMsbControllers = [][]uint8{TonePitchController, EchoBbmController}
 
+const ControllerLevel = 7
+const ControllerPan = 10
+
 // Voice change sysex
 var VoiceChangeCcValues = []uint8{0, 26, 51, 77, 102, 107}
 var VoiceChangeController uint8 = 70

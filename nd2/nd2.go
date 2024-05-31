@@ -105,7 +105,7 @@ func CopyVoice(conf *Nd2ConnectionConfig, from, to uint8) error {
 	return nil
 }
 
-func SetRandomVoice(conf *Nd2ConnectionConfig, voice uint8) error {
+func SetRandomVoice(conf *Nd2ConnectionConfig, voice uint8, incLevel, incPan, incEcho bool) error {
 	conn, err := NewNd2Connection(conf)
 	if err != nil {
 		return err
@@ -113,6 +113,16 @@ func SetRandomVoice(conf *Nd2ConnectionConfig, voice uint8) error {
 	defer conn.Close()
 
 	for _, c := range Nd2Controllers {
+		if c == ControllerLevel && !incLevel {
+			continue
+		}
+		if c == ControllerPan && !incPan {
+			continue
+		}
+		if (c == EchoBbmController[0] || c == EchoBbmController[1]) && !incEcho {
+			continue
+		}
+
 		if err := conn.SendControlChange(voice, c, uint8(rand.Intn(127))); err != nil {
 			return err
 		}

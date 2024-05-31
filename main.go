@@ -243,12 +243,16 @@ func RunNd2RandomiseVoice(args []string) error {
 	SetNd2Flags()
 	var voice uint8
 	flag.Uint8VarP(&voice, "voice", "v", 0, "Voice to randomise")
+	var incLevel, incPan, incEcho bool
+	flag.BoolVarP(&incLevel, "level", "l", false, "Randomise level")
+	flag.BoolVarP(&incPan, "pan", "p", false, "Randomise pan")
+	flag.BoolVarP(&incEcho, "echo", "e", false, "Randomise echo")
 
 	util.ParseArgs(args, util.WithRequiredOpt("voice", "v"))
 
 	Defaults.SetZeroIndexing()
 
-	return nd2.SetRandomVoice(Defaults.Nd2, voice-1)
+	return nd2.SetRandomVoice(Defaults.Nd2, voice-1, incLevel, incPan, incEcho)
 }
 
 func RunNd2NmG2(args []string) error {
