@@ -1,7 +1,7 @@
 package nr2x
 
 import (
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/pkg/errors"
@@ -60,7 +60,7 @@ func NewNr2xConnection(conf *Nr2xConnectionConfig) (c *Nr2xConnection, errVal er
 	}
 	conn.readerWriter = rw
 
-	conn.readerWriter.PrintPorts()
+	conn.readerWriter.LogPorts()
 
 	return conn, nil
 }
@@ -142,7 +142,7 @@ func GetStandardProgram(conf *Nr2xConnectionConfig, filename string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Saved NR2X voice %s to %s\n", conf.Voice, filename)
+	log.Printf("Saved NR2X voice %s to %s\n", conf.Voice, filename)
 	return nil
 }
 
@@ -172,7 +172,7 @@ func SetStandardProgram(conf *Nr2xConnectionConfig, filename string) error {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	fmt.Printf("Sent program %s to NR2X voice %s\n", filename, conf.Voice)
+	log.Printf("Sent program %s to NR2X voice %s\n", filename, conf.Voice)
 	return nil
 }
 
@@ -206,7 +206,7 @@ func GetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Saved NR2X percussion voice %s to %s\n", conf.Voice, filename)
+	log.Printf("Saved NR2X percussion voice %s to %s\n", conf.Voice, filename)
 	return nil
 }
 
@@ -245,7 +245,7 @@ func SetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
 		}
 	}
 
-	fmt.Printf("Sent percussion program %s to NR2X voice %s\n", filename, conf.Voice)
+	log.Printf("Sent percussion program %s to NR2X voice %s\n", filename, conf.Voice)
 	return nil
 }
 
@@ -274,6 +274,6 @@ func MakePercussionVariations(varFiles []string, outFile string, maxMspFormat bo
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Saved NR2X percussion variations to %s\n", filename)
+	log.Printf("Saved NR2X percussion variations to %s\n", filename)
 	return nil
 }

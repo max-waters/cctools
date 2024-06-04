@@ -1,7 +1,7 @@
 package nd2
 
 import (
-	"fmt"
+	"log"
 
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
@@ -101,12 +101,12 @@ func (cont *NmG2Controller) ProcessNmG2Msg(pos *reader.Position, msg midi.Messag
 	if ccMsg, ok := msg.(channel.ControlChange); ok {
 		// pull program from ND2
 		if ccMsg.Controller() == ProgramUpdateController {
-			fmt.Printf("Getting ND2 program")
+			log.Printf("Getting ND2 program")
 			// if err := cont.GetNd2Program(); err != nil {
-			// 	fmt.Printf("Error refreshing ND2 program: %s\n", err)
+			// 	log.Printf("Error refreshing ND2 program: %s\n", err)
 			// }
 			// if err := cont.UpdateNmG2(); err != nil {
-			// 	fmt.Printf("Error updating G2 controller values: %s\n", err)
+			// 	log.Printf("Error updating G2 controller values: %s\n", err)
 			// }
 			return
 		}
@@ -118,12 +118,12 @@ func (cont *NmG2Controller) ProcessNmG2Msg(pos *reader.Position, msg midi.Messag
 			if _, ok := voiceProgram[controllerValue.Controller]; ok {
 				voiceProgram[controllerValue.Controller] = controllerValue.Value
 			} else {
-				fmt.Printf("Unknown ND2 controller: %d\n", controllerValue.Controller)
+				log.Printf("Unknown ND2 controller: %d\n", controllerValue.Controller)
 			}
 
 			// forward to correct channel/voice
 			if err := cont.Nd2Connection.SendControlChange(cont.nd2Voice, controllerValue.Controller, controllerValue.Value); err != nil {
-				fmt.Printf("Error sending control change msg: %s\n", err)
+				log.Printf("Error sending control change msg: %s\n", err)
 			}
 		}
 
@@ -135,18 +135,18 @@ func (cont *NmG2Controller) ProcessNmG2Msg(pos *reader.Position, msg midi.Messag
 		if voice, ok := VoiceChangeKeys[noMsg.Key()]; ok && voice != cont.nd2Voice {
 			cont.nd2Voice = voice
 			if err := cont.Nd2Connection.SendVoiceFocusChange(cont.nd2Voice); err != nil {
-				fmt.Printf("Error changing ND2 voice focus: %s\n", err)
+				log.Printf("Error changing ND2 voice focus: %s\n", err)
 			}
-			fmt.Printf("Updating G2 with ND2 voice %d\n", voice)
+			log.Printf("Updating G2 with ND2 voice %d\n", voice)
 			if err := cont.UpdateNmG2(); err != nil {
-				fmt.Printf("Error updating G2 controller values: %s\n", err)
+				log.Printf("Error updating G2 controller values: %s\n", err)
 			}
 		}
 	}
 
 	// forward to ND2
 	if err := cont.Nd2Connection.readerWriter.Writer.Write(msg); err != nil {
-		fmt.Printf("Error forwarding MIDI msg to ND2: %s\n", err)
+		log.Printf("Error forwarding MIDI msg to ND2: %s\n", err)
 	}
 }
 

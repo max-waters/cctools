@@ -1,7 +1,7 @@
 package nd2
 
 import (
-	"fmt"
+	"log"
 	"reflect"
 	"time"
 
@@ -153,8 +153,8 @@ func NewNd2Connection(config *Nd2ConnectionConfig) (nd2c *Nd2Connection, errVal 
 			conn.readerWriter.Out.Number(), conn.readerWriter.Out.String())
 	}
 
-	fmt.Println("Connected to ND2")
-	conn.readerWriter.PrintPorts()
+	log.Println("Connected to ND2")
+	conn.readerWriter.LogPorts()
 
 	return conn, nil
 }

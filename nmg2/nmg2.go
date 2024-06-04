@@ -1,7 +1,7 @@
 package nmg2
 
 import (
-	"fmt"
+	"log"
 
 	"mvw.org/cctools/util"
 )
@@ -36,6 +36,6 @@ func GetVariations(conf *NmG2ConnectionConfig, filename string, maxMspFormat boo
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Saved NmG2 variations for voice %s to %s\n", conf.Voice, filename)
+	log.Printf("Saved NmG2 variations for voice %s to %s\n", conf.Voice, filename)
 	return nil
 }

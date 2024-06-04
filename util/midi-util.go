@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"log"
 
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/sysex"
@@ -47,7 +48,7 @@ func NewMidiLogger(port uint) *MidiLogger {
 }
 
 func (logger *MidiLogger) Start() error {
-	fmt.Printf("Opening port %d\n", logger.port+1)
+	log.Printf("Opening port %d\n", logger.port+1)
 	in, closeFunc, err := GetMidiInPort(logger.port)
 	if err != nil {
 		return err
@@ -64,7 +65,7 @@ func (logger *MidiLogger) Start() error {
 		}),
 	)
 
-	fmt.Printf("Listening to port %d (%s)\n", in.Number()+1, in.String())
+	log.Printf("Listening to port %d (%s)\n", in.Number()+1, in.String())
 	reader.ListenTo(in)
 	<-logger.shutdownChan
 	return nil
@@ -298,8 +299,8 @@ func (rw *MidiReaderWriter) NoteOff(channel, key uint8) error {
 	return writer.NoteOff(rw.Writer, key)
 }
 
-func (rw *MidiReaderWriter) PrintPorts() {
+func (rw *MidiReaderWriter) LogPorts() {
 	// add one for zero indexing
-	fmt.Printf("MIDI in port:  %d (%s)\n", rw.In.Number()+1, rw.In.String())
-	fmt.Printf("MIDI out port: %d (%s)\n", rw.Out.Number()+1, rw.Out.String())
+	log.Printf("MIDI in port:  %d (%s)\n", rw.In.Number()+1, rw.In.String())
+	log.Printf("MIDI out port: %d (%s)\n", rw.Out.Number()+1, rw.Out.String())
 }

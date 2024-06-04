@@ -1,7 +1,7 @@
 package nd2
 
 import (
-	"fmt"
+	"log"
 	"math/rand"
 
 	"mvw.org/cctools/util"
@@ -29,7 +29,7 @@ func GetProgram(conf *Nd2ConnectionConfig, filename string) error {
 		return err
 	}
 
-	fmt.Printf("Saved ND2 program to %s\n", filename)
+	log.Printf("Saved ND2 program to %s\n", filename)
 	return nil
 }
 
@@ -50,7 +50,8 @@ func SetProgram(conf *Nd2ConnectionConfig, filename string) error {
 			return err
 		}
 	}
-	fmt.Printf("Sent program %s to ND2\n", filename)
+
+	log.Printf("Sent program %s to ND2\n", filename)
 	return nil
 }
 
@@ -73,7 +74,7 @@ func SetVoice(conf *Nd2ConnectionConfig, filename string, voice uint8) error {
 			}
 		}
 	}
-	fmt.Printf("Sent voice %d in program %s to ND2\n", voice+1, filename)
+	log.Printf("Sent voice %d in program %s to ND2\n", voice+1, filename)
 	return nil
 }
 
@@ -101,7 +102,7 @@ func CopyVoice(conf *Nd2ConnectionConfig, from, to uint8) error {
 			}
 		}
 	}
-	fmt.Printf("Copied voice %d to voice %d in ND2\n", from+1, to+1)
+	log.Printf("Copied voice %d to voice %d in ND2\n", from+1, to+1)
 	return nil
 }
 
@@ -128,6 +129,6 @@ func SetRandomVoice(conf *Nd2ConnectionConfig, voice uint8, incLevel, incPan, in
 		}
 	}
 
-	fmt.Printf("Sent random program to ND2 voice %d\n", voice+1)
+	log.Printf("Sent random program to ND2 voice %d\n", voice+1)
 	return nil
 }

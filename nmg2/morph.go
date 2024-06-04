@@ -1,7 +1,7 @@
 package nmg2
 
 import (
-	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -104,7 +104,7 @@ func (m *NmG2Morpher) Start() error {
 				return
 			case <-ticker.C:
 				if err := m.sendUpdate(); err != nil {
-					fmt.Printf("Error sending control changes: %s\n", err)
+					log.Printf("Error sending control changes: %s\n", err)
 					return
 				}
 			}
@@ -139,7 +139,7 @@ func (m *NmG2Morpher) ProcessControlChange(c *channel.ControlChange) error {
 		m.rightTarget.Value = c.Value()
 		m.SetInterpolations()
 	} else if c.Controller() == m.morph.Controller {
-		fmt.Printf("Morph: %d\n", c.Value())
+		log.Printf("Morph: %d\n", c.Value())
 		m.morph.Value = c.Value()
 	}
 	return nil
@@ -170,7 +170,7 @@ func (m *NmG2Morpher) SetInterpolations() {
 	// NB assumes that G2 only sends exact numbers -- 0, 19, 37 etc
 	leftTarget := targetMap[m.leftTarget.Value]
 	rightTarget := targetMap[m.rightTarget.Value]
-	fmt.Printf("Target: %d<->%d\n", leftTarget, rightTarget)
+	log.Printf("Target: %d<->%d\n", leftTarget, rightTarget)
 	// calculate interpolations from left target to current value
 	for c, v := range m.variations[leftTarget] {
 		current := m.interpolations[m.morph.Value][c]

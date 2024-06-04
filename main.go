@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -52,6 +54,9 @@ var Defaults *DefaultFlags
 var mainCommand *util.CommandTree
 
 func init() {
+	// just log msg as passed in
+	log.SetFlags(0)
+
 	Defaults = &DefaultFlags{}
 	if err := yaml.Unmarshal(DefaultsFileBytes, Defaults); err != nil {
 		panic(err)
@@ -112,7 +117,7 @@ func main() {
 }
 
 func PrintDefaultConfig(args []string) error {
-	util.ParseArgs(args)
+	ParseArgs(args)
 
 	bts, err := yaml.Marshal(Defaults)
 	if err != nil {
@@ -123,7 +128,7 @@ func PrintDefaultConfig(args []string) error {
 }
 
 func ListPorts(args []string) error {
-	util.ParseArgs(args)
+	ParseArgs(args)
 
 	return util.ListPorts()
 }
@@ -131,7 +136,7 @@ func ListPorts(args []string) error {
 func RunMidiLogger(args []string) error {
 	port := flag.UintP("port", "p", 1, "The port to listen to")
 
-	util.ParseArgs(args)
+	ParseArgs(args)
 
 	midiLogger := util.NewMidiLogger(*port - 1)
 	CallOnShutdownSignal(midiLogger.Stop)
@@ -144,7 +149,7 @@ func RunControlChangeListener(args []string) error {
 	channel := flag.UintP("chan", "c", 1, "The channel to listen to")
 	outputfile := flag.StringP("file", "f", "", "Output file name")
 
-	util.ParseArgs(args)
+	ParseArgs(args)
 
 	cclv := util.NewControlChangeListenerView(uint(*port)-1, uint8(*channel)-1, *outputfile)
 	CallOnShutdownSignal(cclv.Stop)
@@ -157,7 +162,7 @@ func RunNr2xGet(args []string) error {
 	var perc bool
 	flag.BoolVarP(&perc, "percussion", "p", false, "get a percussion kit")
 
-	util.ParseArgs(args, util.WithRequiredArg("output-file"))
+	ParseArgs(args, util.WithRequiredArg("output-file"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -170,7 +175,7 @@ func RunNr2xSet(args []string) error {
 	var perc bool
 	flag.BoolVarP(&perc, "perc", "p", false, "set a percussion kit")
 
-	util.ParseArgs(args, util.WithRequiredArg("input-file"))
+	ParseArgs(args, util.WithRequiredArg("input-file"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -184,7 +189,7 @@ func RunNr2xMkVariations(args []string) error {
 	flag.BoolVarP(&maxMspFormat, "max", "m", false, "output in Max/MSP coll format")
 	flag.StringSliceVarP(&files, "files", "f", []string{}, "variation files")
 
-	util.ParseArgs(args, util.WithRequiredArg("output-file"))
+	ParseArgs(args, util.WithRequiredArg("output-file"))
 
 	filename := flag.Args()[0]
 
@@ -194,7 +199,7 @@ func RunNr2xMkVariations(args []string) error {
 func RunNd2Get(args []string) error {
 	SetNd2Flags()
 
-	util.ParseArgs(args, util.WithRequiredArg("output-file"))
+	ParseArgs(args, util.WithRequiredArg("output-file"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -205,7 +210,7 @@ func RunNd2Get(args []string) error {
 func RunNd2Set(args []string) error {
 	SetNd2Flags()
 
-	util.ParseArgs(args, util.WithRequiredArg("input-file"))
+	ParseArgs(args, util.WithRequiredArg("input-file"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -218,7 +223,7 @@ func RunNd2SetVoice(args []string) error {
 	var voice uint8
 	flag.Uint8VarP(&voice, "voice", "v", 0, "Voice to set")
 
-	util.ParseArgs(args, util.WithRequiredArg("input-file"), util.WithRequiredOpt("voice", "v"))
+	ParseArgs(args, util.WithRequiredArg("input-file"), util.WithRequiredOpt("voice", "v"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -232,7 +237,7 @@ func RunNd2CopyVoice(args []string) error {
 	flag.Uint8VarP(&from, "from", "f", 0, "Voice to copy")
 	flag.Uint8VarP(&to, "to", "t", 0, "Voice to set")
 
-	util.ParseArgs(args, util.WithRequiredOpt("from", "f"), util.WithRequiredOpt("to", "t"))
+	ParseArgs(args, util.WithRequiredOpt("from", "f"), util.WithRequiredOpt("to", "t"))
 
 	Defaults.SetZeroIndexing()
 
@@ -248,7 +253,7 @@ func RunNd2RandomiseVoice(args []string) error {
 	flag.BoolVarP(&incPan, "pan", "p", false, "Randomise pan")
 	flag.BoolVarP(&incEcho, "echo", "e", false, "Randomise echo")
 
-	util.ParseArgs(args, util.WithRequiredOpt("voice", "v"))
+	ParseArgs(args, util.WithRequiredOpt("voice", "v"))
 
 	Defaults.SetZeroIndexing()
 
@@ -260,7 +265,7 @@ func RunNd2NmG2(args []string) error {
 	flag.UintVarP(&Defaults.NmG2.InPort, "g2-in", "ig", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
 	flag.UintVarP(&Defaults.NmG2.OutPort, "g2-out", "og", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
 
-	util.ParseArgs(args)
+	ParseArgs(args)
 
 	nmg2Conn, err := nd2.NewNmG2Connection(Defaults.Nd2, Defaults.NmG2)
 	if err != nil {
@@ -276,7 +281,7 @@ func RunNmG2Get(args []string) error {
 	maxMspFormat := false
 	flag.BoolVarP(&maxMspFormat, "max", "m", false, "output in Max/MSP coll format")
 
-	util.ParseArgs(args, util.WithRequiredArg("output-file"))
+	ParseArgs(args, util.WithRequiredArg("output-file"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -291,7 +296,7 @@ func RunNmG2Morph(args []string) error {
 	flag.Uint8VarP(&r, "right", "r", 118, "Nord G2 target controller num")
 	flag.Uint8VarP(&m, "morph", "m", 119, "Nord G2 morpher controller num")
 
-	util.ParseArgs(args)
+	ParseArgs(args)
 
 	Defaults.SetZeroIndexing()
 
@@ -323,6 +328,18 @@ func SetNd2Flags() {
 	flag.UintVarP(&Defaults.Nd2.OutPort, "out", "o", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
 	flag.Uint8VarP(&Defaults.Nd2.BaseMidiChannel, "base", "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for Nord Drum 2 voice 1")
 	flag.Uint8VarP(&Defaults.Nd2.GlobalMidiChannel, "global", "g", Defaults.Nd2.GlobalMidiChannel, "Nord Drum 2 Global MIDI channel")
+}
+
+func ParseArgs(args []string, parseOpts ...util.ParseOpt) {
+	// set common flags
+	verbose := false
+	flag.BoolVarP(&verbose, "verbose", "v", false, "verbose mode")
+
+	util.ParseArgs(args, parseOpts...)
+
+	if !verbose {
+		log.SetOutput(io.Discard)
+	}
 }
 
 func CallOnShutdownSignal(f func()) {
