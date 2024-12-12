@@ -3,7 +3,6 @@ package util
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -224,8 +223,13 @@ func BackupIfExists(filename string) error {
 		}
 	}
 
+	// make backip dir
+	dir := filepath.Dir(filename) + "/bak"
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		return errors.Wrapf(err, "cannot create backup directory '%s'", dir)
+	}
+
 	// find backup file name
-	dir := filepath.Dir(filename)
 	extension := filepath.Ext(filename)
 	fileBase := strings.TrimSuffix(filepath.Base(filename), extension)
 
@@ -234,7 +238,7 @@ func BackupIfExists(filename string) error {
 		return err
 	}
 
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return errors.Wrapf(err, "cannot read contents of directory '%s'", dir)
 	}

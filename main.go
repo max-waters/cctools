@@ -221,9 +221,9 @@ func RunNd2Set(args []string) error {
 func RunNd2SetVoice(args []string) error {
 	SetNd2Flags()
 	var voice uint8
-	flag.Uint8VarP(&voice, "voice", "v", 0, "Voice to set")
+	flag.Uint8VarP(&voice, "voice", "c", 0, "Voice to set")
 
-	ParseArgs(args, util.WithRequiredArg("input-file"), util.WithRequiredOpt("voice", "v"))
+	ParseArgs(args, util.WithRequiredArg("input-file"), util.WithRequiredOpt("voice", "c"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
@@ -247,13 +247,13 @@ func RunNd2CopyVoice(args []string) error {
 func RunNd2RandomiseVoice(args []string) error {
 	SetNd2Flags()
 	var voice uint8
-	flag.Uint8VarP(&voice, "voice", "v", 0, "Voice to randomise")
+	flag.Uint8VarP(&voice, "voice", "c", 0, "Voice to randomise")
 	var incLevel, incPan, incEcho bool
 	flag.BoolVarP(&incLevel, "level", "l", false, "Randomise level")
 	flag.BoolVarP(&incPan, "pan", "p", false, "Randomise pan")
 	flag.BoolVarP(&incEcho, "echo", "e", false, "Randomise echo")
 
-	ParseArgs(args, util.WithRequiredOpt("voice", "v"))
+	ParseArgs(args, util.WithRequiredOpt("voice", "c"))
 
 	Defaults.SetZeroIndexing()
 
@@ -312,14 +312,14 @@ func RunNmG2Morph(args []string) error {
 func SetNr2xFlags() {
 	flag.UintVarP(&Defaults.Nr2x.InPort, "in", "i", Defaults.Nr2x.InPort, "Nord Rack 2X MIDI in port")
 	flag.UintVarP(&Defaults.Nr2x.OutPort, "out", "o", Defaults.Nr2x.OutPort, "Nord Rack 2X MIDI out port")
-	flag.StringVarP(&Defaults.Nr2x.Voice, "voice", "v", Defaults.Nr2x.Voice, "Nord Rack 2X voice/slot [A, B, C, D]")
+	flag.StringVarP(&Defaults.Nr2x.Voice, "voice", "c", Defaults.Nr2x.Voice, "Nord Rack 2X voice/slot [A, B, C, D]")
 	flag.Uint8VarP(&Defaults.Nr2x.GlobalMidiChan, "global", "g", Defaults.Nr2x.GlobalMidiChan, "Nord Rack 2X Global MIDI channel")
 }
 
 func SetNmG2Flags() {
 	flag.UintVarP(&Defaults.NmG2.InPort, "in", "i", Defaults.NmG2.InPort, "Nord G2 MIDI in port")
 	flag.UintVarP(&Defaults.NmG2.OutPort, "out", "o", Defaults.NmG2.OutPort, "Nord G2 MIDI out port")
-	flag.StringVarP(&Defaults.NmG2.Voice, "voice", "v", Defaults.NmG2.Voice, "Nord G2 voice/slot [A, B, C, D]")
+	flag.StringVarP(&Defaults.NmG2.Voice, "voice", "c", Defaults.NmG2.Voice, "Nord G2 voice/slot [A, B, C, D]")
 	flag.Uint8VarP(&Defaults.NmG2.GlobalMidiChan, "global", "g", Defaults.NmG2.GlobalMidiChan, "Nord G2 Global MIDI channel")
 }
 
