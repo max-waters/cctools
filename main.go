@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/pkg/errors"
@@ -160,14 +161,21 @@ func RunControlChangeListener(args []string) error {
 func RunNr2xGet(args []string) error {
 	SetNr2xFlags()
 	var perc bool
-	flag.BoolVarP(&perc, "percussion", "p", false, "get a percussion kit")
+	flag.BoolVarP(&perc, "perc", "p", false, "get a percussion kit")
 
 	ParseArgs(args, util.WithRequiredArg("output-file"))
 
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
-	return nr2x.GetProgram(Defaults.Nr2x, perc, filename)
+	switch ext := filepath.Ext(filename); ext {
+	case ".csv":
+		return nr2x.GetProgram(Defaults.Nr2x, perc, filename)
+	case ".syx":
+		return nr2x.GetSysexProgram(Defaults.Nr2x, perc, filename)
+	default:
+		return fmt.Errorf("unknown extension: %s", ext)
+	}
 }
 
 func RunNr2xSet(args []string) error {
@@ -180,7 +188,14 @@ func RunNr2xSet(args []string) error {
 	filename := flag.Args()[0]
 	Defaults.SetZeroIndexing()
 
-	return nr2x.SetProgram(Defaults.Nr2x, perc, filename)
+	switch ext := filepath.Ext(filename); ext {
+	case ".csv":
+		return nr2x.SetProgram(Defaults.Nr2x, perc, filename)
+	case ".syx":
+		return nr2x.SetSysExProgram(Defaults.Nr2x, perc, filename)
+	default:
+		return fmt.Errorf("unknown extension: %s", ext)
+	}
 }
 
 func RunNr2xMkVariations(args []string) error {

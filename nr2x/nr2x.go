@@ -1,12 +1,14 @@
 package nr2x
 
 import (
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/pkg/errors"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
+	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
 	"mvw.org/cctools/util"
 )
@@ -17,7 +19,7 @@ const NumNr2xControllers = 42
 type Nr2xConnection struct {
 	Config       *Nr2xConnectionConfig
 	readerWriter *util.MidiReaderWriter
-	responseChan chan *channel.ControlChange
+	responseChan chan midi.Message
 	shutdownChan chan interface{}
 }
 
@@ -46,14 +48,12 @@ func NewNr2xConnection(conf *Nr2xConnectionConfig) (c *Nr2xConnection, errVal er
 
 	conn := &Nr2xConnection{
 		Config:       conf,
-		responseChan: make(chan *channel.ControlChange, NumNr2xControllers),
+		responseChan: make(chan midi.Message, 1024),
 		shutdownChan: make(chan interface{}, 1),
 	}
 
 	rw, err := util.NewMidiReaderWriter(conf.InPort, conf.OutPort, func(pos *reader.Position, msg midi.Message) {
-		if ccMsg, ok := msg.(channel.ControlChange); ok {
-			conn.responseChan <- &ccMsg
-		}
+		conn.responseChan <- msg
 	})
 	if err != nil {
 		return nil, err
@@ -84,7 +84,124 @@ func (conn *Nr2xConnection) SendPercussionEdit(perc uint8) error {
 	return nil
 }
 
+func (conn *Nr2xConnection) SendPatch(patchSysEx []byte, percussion bool) error {
+	if percussion && len(patchSysEx) != 1056 {
+		return fmt.Errorf("unexpected sysex percussion kit length %d, expected 1056", len(patchSysEx))
+	}
+	if !percussion && len(patchSysEx) != 132 {
+		return fmt.Errorf("unexpected sysex patch length %d, expected 132", len(patchSysEx))
+	}
+
+	if isEmptySysEx(patchSysEx) {
+		return fmt.Errorf("empty sysex data")
+	}
+
+	slotNum, err := getSlotNum(conn.Config.Voice)
+	if err != nil {
+		return err
+	}
+
+	// NB for patches, <slot num> is 0-3, for percussion kits its 16-19
+	if percussion {
+		slotNum = slotNum + 16
+	}
+
+	// [ 240 51 <global midi> 4 <bank> <slot num> ]
+	header := []byte{51, conn.Config.GlobalMidiChan, 4, 0, slotNum}
+	patchSysEx = append(header, patchSysEx...)
+
+	if err := conn.readerWriter.SysEx(conn.Config.GlobalMidiChan, patchSysEx); err != nil {
+		return errors.Wrap(err, "error sending patch")
+	}
+
+	return nil
+}
+
+func (conn *Nr2xConnection) GetPatch(percussion bool) ([]byte, error) {
+	slotNum, err := getSlotNum(conn.Config.Voice)
+	if err != nil {
+		return nil, err
+	}
+
+	// [ 51 <global midi chan> 4 14 <slot num 0-3> ]
+	// NB manual says 10, not 14, but this is a mistake?
+	prSysEx := []byte{51, conn.Config.GlobalMidiChan, 4, 14, slotNum}
+	if err := conn.readerWriter.SysEx(conn.Config.GlobalMidiChan, prSysEx); err != nil {
+		return nil, errors.Wrap(err, "error sending patch dump request")
+	}
+
+	patchSysex := []byte{}
+	lastByte := 0
+	for lastByte != 247 {
+		msg, err := waitForMsg[sysex.Message](conn)
+		if err != nil {
+			return nil, err
+		}
+		patchSysex = append(patchSysex, msg.Data()...)
+		lastByte = int(msg.Raw()[len(msg.Raw())-1])
+	}
+
+	// check length. normal patch is 5+132, percussion patch is 5+1056
+	if percussion && len(patchSysex) != 1061 {
+		return nil, errors.Errorf("unexpected sysex percussion kit dump length: %d, expected 1061 -- set active slot on NR2X and retry", len(patchSysex))
+	}
+	if !percussion && len(patchSysex) != 137 {
+		return nil, errors.Errorf("unexpected sysex patch dump length: %d, expected 137 -- set active slot on NR2X and retry", len(patchSysex))
+	}
+
+	// check header
+	// [ 51 <global midi chan> 4 0 <slot num> ]
+	// NB for patches, <slot num> is 0-3, for percussion kits it's 16-19
+	expSlotNum := slotNum
+	if percussion {
+		expSlotNum = expSlotNum + 16
+	}
+
+	expHeader := []byte{51, conn.Config.GlobalMidiChan, 4, 0, expSlotNum}
+	for i := 0; i < len(expHeader); i++ {
+		if patchSysex[i] != expHeader[i] {
+			return nil, errors.Errorf("sysex header %s does not match expected %s",
+				util.FmtSysEx(patchSysex, len(expHeader)),
+				util.FmtSysEx(expHeader, len(expHeader)))
+		}
+	}
+
+	// strip header, we just save the patch data
+	patchSysex = patchSysex[len(expHeader):]
+	if isEmptySysEx(patchSysex) {
+		return nil, fmt.Errorf("empty sysex data received -- set active slot on NR2X and retry")
+	}
+
+	return patchSysex, nil
+}
+
+func isEmptySysEx(sysEx []byte) bool {
+	for _, b := range sysEx {
+		if int(b) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func getSlotNum(vc string) (uint8, error) {
+	switch vc {
+	case "A":
+		return 0, nil
+	case "B":
+		return 1, nil
+	case "C":
+		return 2, nil
+	case "D":
+		return 3, nil
+	default:
+		return 0, fmt.Errorf("unknown voice '%s'", vc)
+	}
+}
+
 func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, error) {
+	// [ 51 <global midi chan> 4 28 <slot num 0-3> ]
+	// NB manual says 20, not 28. 20 prompts a sysex msg, 28 prompts midi cc values
 	acrSysEx := []byte{51, conn.Config.GlobalMidiChan, 4, 28, conn.Config.voiceMidiChan}
 	if err := conn.readerWriter.SysEx(conn.Config.voiceMidiChan, acrSysEx); err != nil {
 		return nil, errors.Wrap(err, "error sending all controllers request")
@@ -92,7 +209,7 @@ func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, erro
 
 	controllerValues := make([]*util.ControllerValue, NumNr2xControllers)
 	for i := 0; i < NumNr2xControllers; i++ {
-		cvMsg, err := conn.waitForControllerValueMsg()
+		cvMsg, err := waitForMsg[channel.ControlChange](conn)
 		if err != nil {
 			return nil, err
 		}
@@ -104,19 +221,47 @@ func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, erro
 	return controllerValues, nil
 }
 
-func (conn *Nr2xConnection) waitForControllerValueMsg() (*channel.ControlChange, error) {
+func waitForMsg[A midi.Message](conn *Nr2xConnection) (A, error) {
 	select {
 	case <-conn.shutdownChan:
-		return nil, errors.New("cancelled")
+		var zero A
+		return zero, errors.New("cancelled")
 	case <-time.After(ConnectionMaxWaitTime):
-		return nil, errors.New("all controller request timed out")
-	case sysExMsg := <-conn.responseChan:
-		return sysExMsg, nil
+		var zero A
+		return zero, errors.New("request timed out")
+	case msg := <-conn.responseChan:
+		cast, ok := msg.(A)
+		if !ok {
+			var zero A
+			return zero, errors.Errorf("cannot cast %v (%T) as a %T", msg.String(), msg, zero)
+		}
+		return cast, nil
 	}
 }
 
 func (conn *Nr2xConnection) Close() {
 	conn.shutdownChan <- nil
+}
+
+func GetSysexProgram(conf *Nr2xConnectionConfig, perc bool, filename string) error {
+	conn, err := NewNr2xConnection(conf)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	patch, err := conn.GetPatch(perc)
+	if err != nil {
+		return err
+	}
+
+	filename, err = util.SaveSysex(filename, patch)
+	if err != nil {
+		return err
+	}
+	log.Printf("Saved NR2X voice %s to %s\n", conf.Voice, filename)
+	return nil
+
 }
 
 func GetProgram(conf *Nr2xConnectionConfig, perc bool, filename string) error {
@@ -143,6 +288,25 @@ func GetStandardProgram(conf *Nr2xConnectionConfig, filename string) error {
 		return err
 	}
 	log.Printf("Saved NR2X voice %s to %s\n", conf.Voice, filename)
+	return nil
+}
+
+func SetSysExProgram(conf *Nr2xConnectionConfig, perc bool, filename string) error {
+	sysEx, err := util.LoadSysEx(filename)
+	if err != nil {
+		return errors.Wrapf(err, "error reading file '%s'", filename)
+	}
+
+	conn, err := NewNr2xConnection(conf)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if err := conn.SendPatch(sysEx, perc); err != nil {
+		return errors.Wrap(err, "error sending patch")
+	}
+
 	return nil
 }
 

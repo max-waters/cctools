@@ -191,6 +191,27 @@ func SaveControllerValues(filename string, data []*ControllerValue) (string, err
 	return filename, nil
 }
 
+func LoadSysEx(filename string) ([]byte, error) {
+	return os.ReadFile(filename)
+}
+
+func SaveSysex(filename string, data []byte) (string, error) {
+	filename, err := WriteDataToFile(filename, data, writeBytes)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot save sysex data")
+	}
+	return filename, nil
+}
+
+func writeBytes(in interface{}, out io.Writer) error {
+	bts, ok := in.([]byte)
+	if !ok {
+		return fmt.Errorf("not a []byte: %T", in)
+	}
+	_, err := out.Write(bts)
+	return err
+}
+
 func WriteDataToFile(filename string, data interface{}, writeFunc func(in interface{}, out io.Writer) error) (string, error) {
 	filename = FormatFileName(filename)
 	if err := BackupIfExists(filename); err != nil {

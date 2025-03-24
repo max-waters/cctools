@@ -20,5 +20,5 @@ build: clean ## Compile binary
 install: build ## Compile binary and install
 	cp $(COMPILE_DIR)/$(NAME) $(INSTALL_DIR)
 
-uninstall:
+uninstall: ## Delete the installed binary
 	rm $(INSTALL_DIR)/$(NAME)
