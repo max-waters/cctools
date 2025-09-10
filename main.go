@@ -15,6 +15,7 @@ import (
 	_ "embed"
 
 	"gopkg.in/yaml.v2"
+	"mvw.org/cctools/emd"
 	"mvw.org/cctools/nd2"
 	"mvw.org/cctools/nmg2"
 	"mvw.org/cctools/nr2x"
@@ -25,6 +26,7 @@ type DefaultFlags struct {
 	Nr2x *nr2x.Nr2xConnectionConfig `yaml:"nr2x"`
 	Nd2  *nd2.Nd2ConnectionConfig   `yaml:"nd2"`
 	NmG2 *nmg2.NmG2ConnectionConfig `yaml:"nmg2"`
+	Emd  *emd.EmdConnectionConfig   `yaml:"emd"`
 }
 
 func (def DefaultFlags) SetZeroIndexing() {
@@ -46,6 +48,9 @@ func (def DefaultFlags) SetZeroIndexing() {
 	for v, c := range def.NmG2.VoiceChannelMap {
 		def.NmG2.VoiceChannelMap[v] = c - 1
 	}
+
+	def.Emd.InPort--
+	def.Emd.OutPort--
 }
 
 //go:embed defaults.yaml
@@ -91,6 +96,14 @@ func init() {
 		panic(err)
 	}
 
+	emdCommand, err := util.NewCommandTree(
+		util.WithSubCommand("get", RunEmdGetKit),
+		util.WithSubCommand("set", RunEmdSetKit),
+	)
+	if err != nil {
+		panic(err)
+	}
+
 	mainCommand, err = util.NewCommandTree(
 		util.WithSubCommand("ls", ListPorts),
 		util.WithSubCommand("log", RunMidiLogger),
@@ -98,6 +111,7 @@ func init() {
 		util.WithSubCommandTree("nr2x", nr2xCommand),
 		util.WithSubCommandTree("nd2", nd2Command),
 		util.WithSubCommandTree("nmg2", nmg2Command),
+		util.WithSubCommandTree("emd", emdCommand),
 	)
 	if err != nil {
 		panic(err)
@@ -324,6 +338,58 @@ func RunNmG2Morph(args []string) error {
 	return morpher.Start()
 }
 
+func RunEmdGetKit(args []string) error {
+	SetEmdFlags()
+	var kit uint8
+	flag.Uint8VarP(&kit, "kit", "k", 0, "Kit to get (1-64, 0 or 65 for edit buffer)")
+
+	ParseArgs(args, util.WithRequiredArg("output-file"))
+
+	if kit > 65 {
+		return fmt.Errorf("kit must be 0-65: %d", kit)
+	}
+	if kit == 0 {
+		kit = 65
+	}
+	kit-- // zero-index
+
+	filename := flag.Args()[0]
+	Defaults.SetZeroIndexing()
+
+	switch ext := filepath.Ext(filename); ext {
+	case ".syx":
+		return emd.GetSysexKit(Defaults.Emd, kit, filename)
+	default:
+		return fmt.Errorf("unknown extension: %s", ext)
+	}
+}
+
+func RunEmdSetKit(args []string) error {
+	SetEmdFlags()
+	var kit uint8
+	flag.Uint8VarP(&kit, "kit", "k", 0, "Kit to get (1-64, 0 or 65 for edit buffer)")
+
+	ParseArgs(args, util.WithRequiredArg("output-file"))
+
+	if kit > 65 {
+		return fmt.Errorf("kit must be 0-65: %d", kit)
+	}
+	if kit == 0 {
+		kit = 65
+	}
+	kit-- // zero-index
+
+	filename := flag.Args()[0]
+	Defaults.SetZeroIndexing()
+
+	switch ext := filepath.Ext(filename); ext {
+	case ".syx":
+		return emd.SetSysexKit(Defaults.Emd, kit, filename)
+	default:
+		return fmt.Errorf("unknown extension: %s", ext)
+	}
+}
+
 func SetNr2xFlags() {
 	flag.UintVarP(&Defaults.Nr2x.InPort, "in", "i", Defaults.Nr2x.InPort, "Nord Rack 2X MIDI in port")
 	flag.UintVarP(&Defaults.Nr2x.OutPort, "out", "o", Defaults.Nr2x.OutPort, "Nord Rack 2X MIDI out port")
@@ -343,6 +409,11 @@ func SetNd2Flags() {
 	flag.UintVarP(&Defaults.Nd2.OutPort, "out", "o", Defaults.Nd2.InPort, "Nord Drum 2 MIDI in port")
 	flag.Uint8VarP(&Defaults.Nd2.BaseMidiChannel, "base", "b", Defaults.Nd2.BaseMidiChannel, "MIDI channel for Nord Drum 2 voice 1")
 	flag.Uint8VarP(&Defaults.Nd2.GlobalMidiChannel, "global", "g", Defaults.Nd2.GlobalMidiChannel, "Nord Drum 2 Global MIDI channel")
+}
+
+func SetEmdFlags() {
+	flag.UintVarP(&Defaults.Emd.InPort, "in", "i", Defaults.Emd.InPort, "Elektron Machinedrum in port")
+	flag.UintVarP(&Defaults.Emd.OutPort, "out", "o", Defaults.Emd.OutPort, "Elektron Machinedrum out port")
 }
 
 func ParseArgs(args []string, parseOpts ...util.ParseOpt) {

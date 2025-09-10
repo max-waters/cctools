@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
+	"github.com/pkg/errors"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
@@ -306,13 +308,31 @@ func (rw *MidiReaderWriter) LogPorts() {
 	log.Printf("MIDI out port: %d (%s)\n", rw.Out.Number()+1, rw.Out.String())
 }
 
-func FmtSysEx(sysex []byte, len int) string {
+func FmtSysEx(sysex []byte) string {
 	b := strings.Builder{}
-	for i := 0; i < len; i++ {
+	for i := range sysex {
 		b.WriteString(fmt.Sprintf("%d", int(sysex[i])))
-		if i < len-1 {
+		if i < len(sysex)-1 {
 			b.WriteString(" ")
 		}
 	}
 	return b.String()
+}
+
+func WaitForMsg[A midi.Message](responseChan chan midi.Message, shutdownChan chan any, timeout time.Duration) (A, error) {
+	select {
+	case <-shutdownChan:
+		var zero A
+		return zero, errors.New("cancelled")
+	case <-time.After(timeout):
+		var zero A
+		return zero, errors.New("request timed out")
+	case msg := <-responseChan:
+		cast, ok := msg.(A)
+		if !ok {
+			var zero A
+			return zero, errors.Errorf("cannot cast %v (%T) as a %T", msg.String(), msg, zero)
+		}
+		return cast, nil
+	}
 }

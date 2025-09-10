@@ -23,3 +23,6 @@ nmg2:
     C: 3
     D: 4
   voice: A
+emd:
+  in_port: 2
+  out_port: 2

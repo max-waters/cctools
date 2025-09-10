@@ -20,7 +20,7 @@ type Nr2xConnection struct {
 	Config       *Nr2xConnectionConfig
 	readerWriter *util.MidiReaderWriter
 	responseChan chan midi.Message
-	shutdownChan chan interface{}
+	shutdownChan chan any
 }
 
 type Nr2xConnectionConfig struct {
@@ -49,7 +49,7 @@ func NewNr2xConnection(conf *Nr2xConnectionConfig) (c *Nr2xConnection, errVal er
 	conn := &Nr2xConnection{
 		Config:       conf,
 		responseChan: make(chan midi.Message, 1024),
-		shutdownChan: make(chan interface{}, 1),
+		shutdownChan: make(chan any, 1),
 	}
 
 	rw, err := util.NewMidiReaderWriter(conf.InPort, conf.OutPort, func(pos *reader.Position, msg midi.Message) {
@@ -133,7 +133,7 @@ func (conn *Nr2xConnection) GetPatch(percussion bool) ([]byte, error) {
 	patchSysex := []byte{}
 	lastByte := 0
 	for lastByte != 247 {
-		msg, err := waitForMsg[sysex.Message](conn)
+		msg, err := util.WaitForMsg[sysex.Message](conn.responseChan, conn.shutdownChan, ConnectionMaxWaitTime)
 		if err != nil {
 			return nil, err
 		}
@@ -158,11 +158,11 @@ func (conn *Nr2xConnection) GetPatch(percussion bool) ([]byte, error) {
 	}
 
 	expHeader := []byte{51, conn.Config.GlobalMidiChan, 4, 0, expSlotNum}
-	for i := 0; i < len(expHeader); i++ {
+	for i := range len(expHeader) {
 		if patchSysex[i] != expHeader[i] {
 			return nil, errors.Errorf("sysex header %s does not match expected %s",
-				util.FmtSysEx(patchSysex, len(expHeader)),
-				util.FmtSysEx(expHeader, len(expHeader)))
+				util.FmtSysEx(patchSysex[:len(expHeader)]),
+				util.FmtSysEx(expHeader))
 		}
 	}
 
@@ -208,8 +208,8 @@ func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, erro
 	}
 
 	controllerValues := make([]*util.ControllerValue, NumNr2xControllers)
-	for i := 0; i < NumNr2xControllers; i++ {
-		cvMsg, err := waitForMsg[channel.ControlChange](conn)
+	for i := range NumNr2xControllers {
+		cvMsg, err := util.WaitForMsg[channel.ControlChange](conn.responseChan, conn.shutdownChan, ConnectionMaxWaitTime)
 		if err != nil {
 			return nil, err
 		}
@@ -219,24 +219,6 @@ func (conn *Nr2xConnection) GetControllerValues() ([]*util.ControllerValue, erro
 		}
 	}
 	return controllerValues, nil
-}
-
-func waitForMsg[A midi.Message](conn *Nr2xConnection) (A, error) {
-	select {
-	case <-conn.shutdownChan:
-		var zero A
-		return zero, errors.New("cancelled")
-	case <-time.After(ConnectionMaxWaitTime):
-		var zero A
-		return zero, errors.New("request timed out")
-	case msg := <-conn.responseChan:
-		cast, ok := msg.(A)
-		if !ok {
-			var zero A
-			return zero, errors.Errorf("cannot cast %v (%T) as a %T", msg.String(), msg, zero)
-		}
-		return cast, nil
-	}
 }
 
 func (conn *Nr2xConnection) Close() {
@@ -261,7 +243,6 @@ func GetSysexProgram(conf *Nr2xConnectionConfig, perc bool, filename string) err
 	}
 	log.Printf("Saved NR2X voice %s to %s\n", conf.Voice, filename)
 	return nil
-
 }
 
 func GetProgram(conf *Nr2xConnectionConfig, perc bool, filename string) error {
@@ -348,8 +329,7 @@ func GetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
 	defer conn.Close()
 
 	percussionValues := []*util.VoiceControllerValue{}
-	var i uint8
-	for i = 0; i < 8; i++ {
+	for i := range uint8(8) {
 		if err := conn.SendPercussionEdit(i); err != nil {
 			return err
 		}
@@ -386,8 +366,7 @@ func SetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
 		return err
 	}
 	percussionValuesMap := map[uint8][]*util.ControllerValue{}
-	var i uint8
-	for i = 0; i < 8; i++ {
+	for i := range uint8(8) {
 		percussionValuesMap[i] = []*util.ControllerValue{}
 	}
 	for _, vcv := range percussionValues {
@@ -415,7 +394,7 @@ func SetPercussionProgram(conf *Nr2xConnectionConfig, filename string) error {
 
 func MakePercussionVariations(varFiles []string, outFile string, maxMspFormat bool) error {
 	voiceVarConVals := make([][]*util.VoiceControllerValue, 8)
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		voiceVarConVals[i] = []*util.VoiceControllerValue{}
 	}
 	for i, varFile := range varFiles {
