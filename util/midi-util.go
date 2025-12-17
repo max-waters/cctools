@@ -40,13 +40,13 @@ type ControllerValue struct {
 
 type MidiLogger struct {
 	port         uint
-	shutdownChan chan interface{}
+	shutdownChan chan any
 }
 
 func NewMidiLogger(port uint) *MidiLogger {
 	return &MidiLogger{
 		port:         port,
-		shutdownChan: make(chan interface{}, 1),
+		shutdownChan: make(chan any, 1),
 	}
 }
 

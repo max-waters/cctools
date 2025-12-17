@@ -47,13 +47,13 @@ type NmG2Controller struct {
 	NmG2Connection *nmg2.NmG2Connection
 	Nd2Program     map[uint8]map[uint8]uint8
 	nd2Voice       uint8
-	shutdownChan   chan interface{}
+	shutdownChan   chan any
 }
 
 func NewNmG2Connection(nd2Config *Nd2ConnectionConfig, nmG2Config *nmg2.NmG2ConnectionConfig) (*NmG2Controller, error) {
 	cont := &NmG2Controller{
 		nd2Voice:     0,
-		shutdownChan: make(chan interface{}, 1),
+		shutdownChan: make(chan any, 1),
 	}
 
 	nd2Conn, err := NewNd2Connection(nd2Config)

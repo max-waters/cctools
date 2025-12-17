@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 
 	"github.com/pkg/errors"
@@ -277,16 +279,25 @@ func RunNd2RandomiseVoice(args []string) error {
 	SetNd2Flags()
 	var voice uint8
 	flag.Uint8VarP(&voice, "voice", "c", 0, "Voice to randomise")
-	var incLevel, incPan, incEcho bool
-	flag.BoolVarP(&incLevel, "level", "l", false, "Randomise level")
-	flag.BoolVarP(&incPan, "pan", "p", false, "Randomise pan")
-	flag.BoolVarP(&incEcho, "echo", "e", false, "Randomise echo")
+	exclude := []string{}
+	flag.StringArrayVarP(&exclude, "exclude", "e", []string{"level", "pan", "echoBPMMSB", "echoBPMLSB"}, "Controller names to exclude")
 
 	ParseArgs(args, util.WithRequiredOpt("voice", "c"))
 
 	Defaults.SetZeroIndexing()
 
-	return nd2.SetRandomVoice(Defaults.Nd2, voice-1, incLevel, incPan, incEcho)
+	excludeCtlrs := make(map[uint8]bool, len(exclude))
+	for _, name := range exclude {
+		c, ok := nd2.ControllerNameChanMap[name]
+		if !ok {
+			ctlrNames := util.MapKeysToSlice(nd2.ControllerNameChanMap)
+			slices.Sort(ctlrNames)
+			return fmt.Errorf("unknown controller: %s. expected: %s", name, strings.Join(ctlrNames, ","))
+		}
+		excludeCtlrs[c] = true
+	}
+
+	return nd2.SetRandomVoice(Defaults.Nd2, voice-1, excludeCtlrs)
 }
 
 func RunNd2NmG2(args []string) error {
