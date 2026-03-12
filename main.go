@@ -378,7 +378,7 @@ func RunEmdGetKit(args []string) error {
 func RunEmdSetKit(args []string) error {
 	SetEmdFlags()
 	var kit uint8
-	flag.Uint8VarP(&kit, "kit", "k", 0, "Kit to get (1-64, 0 or 65 for edit buffer)")
+	flag.Uint8VarP(&kit, "kit", "k", 0, "Location to set kit (1-64, 0 or 65 for edit buffer)")
 
 	ParseArgs(args, util.WithRequiredArg("output-file"))
 
