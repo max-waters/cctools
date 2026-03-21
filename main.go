@@ -16,12 +16,12 @@ import (
 
 	_ "embed"
 
+	"github.com/max-waters/cctools/emd"
+	"github.com/max-waters/cctools/nd2"
+	"github.com/max-waters/cctools/nmg2"
+	"github.com/max-waters/cctools/nr2x"
+	"github.com/max-waters/cctools/util"
 	"gopkg.in/yaml.v2"
-	"mvw.org/cctools/emd"
-	"mvw.org/cctools/nd2"
-	"mvw.org/cctools/nmg2"
-	"mvw.org/cctools/nr2x"
-	"mvw.org/cctools/util"
 )
 
 type DefaultFlags struct {

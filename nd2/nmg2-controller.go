@@ -3,11 +3,11 @@ package nd2
 import (
 	"log"
 
+	"github.com/max-waters/cctools/nmg2"
+	"github.com/max-waters/cctools/util"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/reader"
-	"mvw.org/cctools/nmg2"
-	"mvw.org/cctools/util"
 )
 
 const Ng2PitchController uint8 = 71

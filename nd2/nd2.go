@@ -4,7 +4,7 @@ import (
 	"log"
 	"math/rand"
 
-	"mvw.org/cctools/util"
+	"github.com/max-waters/cctools/util"
 )
 
 var ControllerNameChanMap = map[string]uint8{

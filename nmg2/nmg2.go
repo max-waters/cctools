@@ -3,7 +3,7 @@ package nmg2
 import (
 	"log"
 
-	"mvw.org/cctools/util"
+	"github.com/max-waters/cctools/util"
 )
 
 func GetVariations(conf *NmG2ConnectionConfig, filename string, maxMspFormat bool) error {

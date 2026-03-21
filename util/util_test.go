@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	"mvw.org/cctools/util"
+	"github.com/max-waters/cctools/util"
 )
 
 func TestGetNumberedFileRegex(t *testing.T) {

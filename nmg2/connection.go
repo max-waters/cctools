@@ -3,11 +3,11 @@ package nmg2
 import (
 	"time"
 
+	"github.com/max-waters/cctools/util"
 	"github.com/pkg/errors"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"gitlab.com/gomidi/midi/reader"
-	"mvw.org/cctools/util"
 )
 
 const VarChangeController uint8 = 70

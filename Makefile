@@ -1,6 +1,6 @@
 NAME=cct
 COMPILE_DIR=./bin
-INSTALL_DIR=/usr/local/bin
+INSTALL_DIR=~/bin
 
 .PHONY: help test clean build install uninstall
 .DEFAULT_GOAL := help

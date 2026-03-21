@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/max-waters/cctools/util"
 	"gitlab.com/gomidi/midi/midimessage/channel"
-	"mvw.org/cctools/util"
 )
 
 var targetMap map[uint8]uint8 = map[uint8]uint8{0: 0, 19: 1, 37: 2, 55: 3, 73: 4, 91: 5, 109: 6, 127: 7}

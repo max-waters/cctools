@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/gocarina/gocsv"
-	"mvw.org/cctools/util"
+	"github.com/max-waters/cctools/util"
 )
 
 func main() {

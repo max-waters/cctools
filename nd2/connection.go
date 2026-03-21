@@ -8,11 +8,11 @@ import (
 	_ "embed"
 
 	"github.com/gocarina/gocsv"
+	"github.com/max-waters/cctools/util"
 	"github.com/pkg/errors"
 	"gitlab.com/gomidi/midi"
 	"gitlab.com/gomidi/midi/midimessage/sysex"
 	"gitlab.com/gomidi/midi/reader"
-	"mvw.org/cctools/util"
 )
 
 // All controllers, arranged with LSB/MSB pairs in order
