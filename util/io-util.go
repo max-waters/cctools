@@ -30,7 +30,7 @@ func LoadVoiceControllerValues(filename string) ([]*VoiceControllerValue, error)
 	return rows, nil
 }
 
-func UnmarshalCsv(filename string, dest interface{}) error {
+func UnmarshalCsv(filename string, dest any) error {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func SaveVoiceControllerValuesAsMaxMsp(filename string, data []*VoiceControllerV
 
 // data: voice x variation x ctrler x value
 func SaveVoiceVariationControllerValuesAsMaxMsp(filename string, data [][]*VoiceControllerValue) (string, error) {
-	tableData := [][]interface{}{}
+	tableData := [][]any{}
 	for i, vcvs := range data {
 		formatted, err := FormatVoiceControllerValues(vcvs)
 		if err != nil {
@@ -71,7 +71,7 @@ func SaveVoiceVariationControllerValuesAsMaxMsp(filename string, data [][]*Voice
 
 		// append variation num to other rows
 		for j := 0; j < len(formatted); j++ {
-			row := append([]interface{}{i}, formatted[j]...)
+			row := append([]any{i}, formatted[j]...)
 			tableData = append(tableData, row)
 		}
 	}
@@ -79,9 +79,9 @@ func SaveVoiceVariationControllerValuesAsMaxMsp(filename string, data [][]*Voice
 	return WriteDataToFile(filename, tableData, WriteMaxMspTextFormat)
 }
 
-func FormatVoiceControllerValues(data []*VoiceControllerValue) ([][]interface{}, error) {
-	voiceSet := map[uint8]interface{}{}
-	controllerSet := map[uint8]interface{}{}
+func FormatVoiceControllerValues(data []*VoiceControllerValue) ([][]any, error) {
+	voiceSet := map[uint8]any{}
+	controllerSet := map[uint8]any{}
 
 	// put data into map controller -> voice -> value
 	dataMap := map[uint8]map[uint8]uint8{}
@@ -133,11 +133,11 @@ func FormatVoiceControllerValues(data []*VoiceControllerValue) ([][]interface{},
 	controllers = filteredControllers
 
 	// create table with headers row
-	dataTable := make([][]interface{}, len(controllers))
-	dataTable[0] = make([]interface{}, len(voices)+1)
+	dataTable := make([][]any, len(controllers))
+	dataTable[0] = make([]any, len(voices)+1)
 
 	for i, controller := range controllers {
-		dataTable[i] = make([]interface{}, len(voices)+1)
+		dataTable[i] = make([]any, len(voices)+1)
 		dataTable[i][0] = controller
 
 		for j, voice := range voices {
@@ -148,10 +148,10 @@ func FormatVoiceControllerValues(data []*VoiceControllerValue) ([][]interface{},
 	return dataTable, nil
 }
 
-func WriteMaxMspTextFormat(in interface{}, out io.Writer) error {
-	dataTable, ok := in.([][]interface{})
+func WriteMaxMspTextFormat(in any, out io.Writer) error {
+	dataTable, ok := in.([][]any)
 	if !ok {
-		return errors.Errorf("must be of type [][]interface{}, not %T", in)
+		return errors.Errorf("must be of type [][]any, not %T", in)
 	}
 
 	for _, row := range dataTable {
@@ -163,10 +163,10 @@ func WriteMaxMspTextFormat(in interface{}, out io.Writer) error {
 	return nil
 }
 
-func WriteMaxMspCollFormat(in interface{}, out io.Writer) error {
-	dataTable, ok := in.([][]interface{})
+func WriteMaxMspCollFormat(in any, out io.Writer) error {
+	dataTable, ok := in.([][]any)
 	if !ok {
-		return errors.Errorf("must be of type [][]interface{}, not %T", in)
+		return errors.Errorf("must be of type [][]any, not %T", in)
 	}
 
 	for _, row := range dataTable {
@@ -195,6 +195,7 @@ func LoadSysEx(filename string) ([]byte, error) {
 	return os.ReadFile(filename)
 }
 
+// todo: rename
 func SaveSysex(filename string, data []byte) (string, error) {
 	filename, err := WriteDataToFile(filename, data, writeBytes)
 	if err != nil {
@@ -203,7 +204,7 @@ func SaveSysex(filename string, data []byte) (string, error) {
 	return filename, nil
 }
 
-func writeBytes(in interface{}, out io.Writer) error {
+func writeBytes(in any, out io.Writer) error {
 	bts, ok := in.([]byte)
 	if !ok {
 		return fmt.Errorf("not a []byte: %T", in)
@@ -212,7 +213,7 @@ func writeBytes(in interface{}, out io.Writer) error {
 	return err
 }
 
-func WriteDataToFile(filename string, data interface{}, writeFunc func(in interface{}, out io.Writer) error) (string, error) {
+func WriteDataToFile(filename string, data any, writeFunc func(in any, out io.Writer) error) (string, error) {
 	filename = FormatFileName(filename)
 	if err := BackupIfExists(filename); err != nil {
 		return "", errors.Wrap(err, "cannot back up file")
@@ -320,7 +321,7 @@ func GetNumberedFileRegex(filename, extension string) (*regexp.Regexp, error) {
 	return regexp.Compile(fmt.Sprintf("^%s-([\\d]+)%s$", sanitisedFileName, sanitisedExt))
 }
 
-func OrderSet(set map[uint8]interface{}) []uint8 {
+func OrderSet(set map[uint8]any) []uint8 {
 	ordered := make([]uint8, len(set))
 	i := 0
 	for n := range set {

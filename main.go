@@ -101,6 +101,7 @@ func init() {
 	emdCommand, err := util.NewCommandTree(
 		util.WithSubCommand("get", RunEmdGetKit),
 		util.WithSubCommand("set", RunEmdSetKit),
+		util.WithSubCommand("vrand", RunEmdRandomizeVoice),
 	)
 	if err != nil {
 		panic(err)
@@ -370,6 +371,8 @@ func RunEmdGetKit(args []string) error {
 	switch ext := filepath.Ext(filename); ext {
 	case ".syx":
 		return emd.GetSysexKit(Defaults.Emd, kit, filename)
+	case ".csv":
+		return emd.GetCcValues(Defaults.Emd, kit, filename)
 	default:
 		return fmt.Errorf("unknown extension: %s", ext)
 	}
@@ -399,6 +402,37 @@ func RunEmdSetKit(args []string) error {
 	default:
 		return fmt.Errorf("unknown extension: %s", ext)
 	}
+}
+
+func RunEmdRandomizeVoice(args []string) error {
+	SetEmdFlags()
+	var kit, voice uint8
+	var machine bool
+	var params []string
+	flag.Uint8VarP(&kit, "kit", "k", 0, "Location to set kit (1-64, 0 or 65 for edit buffer)")
+	flag.Uint8VarP(&voice, "voice", "c", 0, "Voice to randomize (1-16)")
+	flag.BoolVarP(&machine, "machine", "m", false, "Randomize machine")
+	flag.StringArrayVarP(&params, "parameters", "p", []string{"syn", "eff"}, "Parameters to randomize")
+
+	ParseArgs(args)
+
+	if kit > 65 {
+		return fmt.Errorf("kit must be 0-65: %d", kit)
+	}
+	if kit == 0 {
+		kit = 65
+	}
+
+	if voice == 0 || voice > 16 {
+		return fmt.Errorf("voice must be 1-12: %d", voice)
+	}
+
+	// zero-index
+	kit--
+	voice--
+	Defaults.SetZeroIndexing()
+
+	return emd.RandomizeVoice(Defaults.Emd, kit, voice, machine, params)
 }
 
 func SetNr2xFlags() {

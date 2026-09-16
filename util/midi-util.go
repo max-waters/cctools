@@ -33,6 +33,12 @@ type VoiceControllerValue struct {
 	Value      uint8 `csv:"value"`
 }
 
+type ChannelControllerValue struct {
+	Channel    uint8 `csv:"channel"`
+	Controller uint8 `csv:"controller"`
+	Value      uint8 `csv:"value"`
+}
+
 type ControllerValue struct {
 	Controller uint8 `csv:"controller"`
 	Value      uint8 `csv:"value"`
@@ -252,7 +258,6 @@ type MidiReaderWriter struct {
 }
 
 func NewMidiReaderWriter(inPort, outPort uint, msgReadFunction func(pos *reader.Position, msg midi.Message)) (readerWriter *MidiReaderWriter, errVal error) {
-	rw := &MidiReaderWriter{}
 	in, out, closeFunc, err := GetMidiPorts(inPort, outPort)
 	if err != nil {
 		return nil, err
@@ -262,6 +267,8 @@ func NewMidiReaderWriter(inPort, outPort uint, msgReadFunction func(pos *reader.
 			closeFunc()
 		}
 	}()
+
+	rw := &MidiReaderWriter{}
 	rw.closeFunc = closeFunc
 	rw.In = in
 	rw.Out = out
@@ -270,6 +277,7 @@ func NewMidiReaderWriter(inPort, outPort uint, msgReadFunction func(pos *reader.
 		reader.NoLogger(),
 		reader.Each(msgReadFunction),
 	)
+
 	if err := rw.Reader.ListenTo(in); err != nil {
 		return nil, err
 	}

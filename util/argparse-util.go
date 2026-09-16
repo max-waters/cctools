@@ -2,7 +2,6 @@ package util
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -154,7 +153,7 @@ func ParseArgs(args []string, parseOpts ...ParseOpt) {
 			fmt.Printf("unexpected argument(s): %s\n", strings.Join(flag.Args()[len(reqOpts.RequiredArguments):], " "))
 		}
 		flag.Usage()
-		os.Exit(1)
+		//os.Exit(1)
 	}
 
 	seen := make(map[string]bool)
@@ -163,7 +162,7 @@ func ParseArgs(args []string, parseOpts ...ParseOpt) {
 		if !seen[req.Name] && !seen[req.ShortName] {
 			fmt.Printf("option is required: %s\n", req.Name)
 			flag.Usage()
-			os.Exit(1)
+			//os.Exit(1)
 		}
 	}
 }
